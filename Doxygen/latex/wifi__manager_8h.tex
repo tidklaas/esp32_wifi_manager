@@ -1,0 +1,260 @@
+\hypertarget{wifi__manager_8h}{}\section{include/wifi\+\_\+manager.h File Reference}
+\label{wifi__manager_8h}\index{include/wifi\_manager.h@{include/wifi\_manager.h}}
+{\ttfamily \#include $<$stdbool.\+h$>$}\newline
+{\ttfamily \#include \char`\"{}esp\+\_\+err.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}esp\+\_\+wifi\+\_\+types.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}esp\+\_\+event\+\_\+loop.\+h\char`\"{}}\newline
+{\ttfamily \#include \char`\"{}tcpip\+\_\+adapter.\+h\char`\"{}}\newline
+\subsection*{Data Structures}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structscan__data}{scan\+\_\+data}}
+\item 
+struct \mbox{\hyperlink{structwifi__cfg}{wifi\+\_\+cfg}}
+\end{DoxyCompactItemize}
+\subsection*{Enumerations}
+\begin{DoxyCompactItemize}
+\item 
+enum \mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccef}{wmngr\+\_\+state}} \{ \newline
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa5de108d139875565ba4c04a6cb0f6331}{wmngr\+\_\+state\+\_\+failed}}, 
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefac9686d9646295e6c849054058601e8a3}{wmngr\+\_\+state\+\_\+connected}}, 
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa41ca5963fd23eee073d864d3d4d551be}{wmngr\+\_\+state\+\_\+idle}}, 
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa35f89224dd3b7db85e995f30e470c250}{wmngr\+\_\+state\+\_\+update}}, 
+\newline
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa69e540b78987f4bc1d796db279c1ddfc}{wmngr\+\_\+state\+\_\+wps\+\_\+start}}, 
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa3d0b356f630d93f791941e5a1000bd9b}{wmngr\+\_\+state\+\_\+wps\+\_\+active}}, 
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefaad1bdbf68e9271276d3780457dc1f5c2}{wmngr\+\_\+state\+\_\+connecting}}, 
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa99963d39d6d7e8fa50cb2236d9a72385}{wmngr\+\_\+state\+\_\+disconnecting}}, 
+\newline
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa3eb43e6ef5f4beae1a9ac3df4e0181fd}{wmngr\+\_\+state\+\_\+fallback}}, 
+\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa44e8d79d3baba58f5821dc2812a55a7a}{wmngr\+\_\+state\+\_\+max}}
+ \}
+\end{DoxyCompactItemize}
+\subsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+esp\+\_\+err\+\_\+t \mbox{\hyperlink{wifi__manager_8h_a908df21269b51cfc2152f28d85145867}{esp\+\_\+wmngr\+\_\+init}} (void)
+\item 
+esp\+\_\+err\+\_\+t \mbox{\hyperlink{wifi__manager_8h_acc0927bd73e14d887a5685f96c34f11d}{esp\+\_\+wmngr\+\_\+start\+\_\+scan}} (void)
+\item 
+struct \mbox{\hyperlink{structscan__data}{scan\+\_\+data}} $\ast$ \mbox{\hyperlink{wifi__manager_8h_a78ede058666fc6a1a3119c47ca4716ff}{esp\+\_\+wmngr\+\_\+get\+\_\+scan}} (void)
+\item 
+void \mbox{\hyperlink{wifi__manager_8h_a900f5c724c90f9acb81e823185acf3c5}{esp\+\_\+wmngr\+\_\+put\+\_\+scan}} (struct \mbox{\hyperlink{structscan__data}{scan\+\_\+data}} $\ast$data)
+\item 
+esp\+\_\+err\+\_\+t \mbox{\hyperlink{wifi__manager_8h_abbb9b00873b40b99e3d2b62b2ae1b058}{esp\+\_\+wmngr\+\_\+set\+\_\+cfg}} (struct \mbox{\hyperlink{structwifi__cfg}{wifi\+\_\+cfg}} $\ast$cfg)
+\item 
+esp\+\_\+err\+\_\+t \mbox{\hyperlink{wifi__manager_8h_ad9d09c09e61c519a78ff7bb3245d2891}{esp\+\_\+wmngr\+\_\+get\+\_\+cfg}} (struct \mbox{\hyperlink{structwifi__cfg}{wifi\+\_\+cfg}} $\ast$cfg)
+\item 
+esp\+\_\+err\+\_\+t \mbox{\hyperlink{wifi__manager_8h_aa7669e05b4a0e8a782b8ed1b91f36ad5}{esp\+\_\+wmngr\+\_\+start\+\_\+wps}} (void)
+\item 
+bool \mbox{\hyperlink{wifi__manager_8h_a90343e35448090427750e9cf25ad33ba}{esp\+\_\+wmngr\+\_\+is\+\_\+connected}} (void)
+\item 
+esp\+\_\+err\+\_\+t \mbox{\hyperlink{wifi__manager_8h_aa12de12116cda3371bf5bbd4d817166f}{esp\+\_\+wmngr\+\_\+connect}} (void)
+\item 
+esp\+\_\+err\+\_\+t \mbox{\hyperlink{wifi__manager_8h_a732c809074fa26f2bf144022e38f294c}{esp\+\_\+wmngr\+\_\+disconnect}} (void)
+\item 
+enum \mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccef}{wmngr\+\_\+state}} \mbox{\hyperlink{wifi__manager_8h_a0d05736f568d0e3671d5c6b5233dab5a}{esp\+\_\+wmngr\+\_\+get\+\_\+state}} (void)
+\end{DoxyCompactItemize}
+\subsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+const char $\ast$ \mbox{\hyperlink{wifi__manager_8h_af85a5ed5ad1627ffd6729a9432afe873}{wmngr\+\_\+state\+\_\+names}} \mbox{[}\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa44e8d79d3baba58f5821dc2812a55a7a}{wmngr\+\_\+state\+\_\+max}}\mbox{]}
+\end{DoxyCompactItemize}
+
+
+\subsection{Enumeration Type Documentation}
+\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccef}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccef}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state@{wmngr\_state}}
+\index{wmngr\_state@{wmngr\_state}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{wmngr\_state}{wmngr\_state}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccef}{wmngr\+\_\+state}}}
+
+States used during Wi\+Fi (re)configuration. \begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_failed@{wmngr\_state\_failed}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_failed@{wmngr\_state\_failed}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa5de108d139875565ba4c04a6cb0f6331}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa5de108d139875565ba4c04a6cb0f6331}} 
+wmngr\+\_\+state\+\_\+failed&Connection to AP failed. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_connected@{wmngr\_state\_connected}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_connected@{wmngr\_state\_connected}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefac9686d9646295e6c849054058601e8a3}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefac9686d9646295e6c849054058601e8a3}} 
+wmngr\+\_\+state\+\_\+connected&Device is connected to AP. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_idle@{wmngr\_state\_idle}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_idle@{wmngr\_state\_idle}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa41ca5963fd23eee073d864d3d4d551be}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa41ca5963fd23eee073d864d3d4d551be}} 
+wmngr\+\_\+state\+\_\+idle&Device is in AP mode, no S\+TA config set. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_update@{wmngr\_state\_update}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_update@{wmngr\_state\_update}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa35f89224dd3b7db85e995f30e470c250}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa35f89224dd3b7db85e995f30e470c250}} 
+wmngr\+\_\+state\+\_\+update&New configuration has been set. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_wps\_start@{wmngr\_state\_wps\_start}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_wps\_start@{wmngr\_state\_wps\_start}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa69e540b78987f4bc1d796db279c1ddfc}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa69e540b78987f4bc1d796db279c1ddfc}} 
+wmngr\+\_\+state\+\_\+wps\+\_\+start&W\+PS has been triggered by user. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_wps\_active@{wmngr\_state\_wps\_active}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_wps\_active@{wmngr\_state\_wps\_active}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa3d0b356f630d93f791941e5a1000bd9b}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa3d0b356f630d93f791941e5a1000bd9b}} 
+wmngr\+\_\+state\+\_\+wps\+\_\+active&W\+PS is running. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_connecting@{wmngr\_state\_connecting}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_connecting@{wmngr\_state\_connecting}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefaad1bdbf68e9271276d3780457dc1f5c2}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefaad1bdbf68e9271276d3780457dc1f5c2}} 
+wmngr\+\_\+state\+\_\+connecting&Device is trying to connect to AP. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_disconnecting@{wmngr\_state\_disconnecting}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_disconnecting@{wmngr\_state\_disconnecting}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa99963d39d6d7e8fa50cb2236d9a72385}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa99963d39d6d7e8fa50cb2236d9a72385}} 
+wmngr\+\_\+state\+\_\+disconnecting&Disconnect from AP has been triggered. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_fallback@{wmngr\_state\_fallback}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_fallback@{wmngr\_state\_fallback}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa3eb43e6ef5f4beae1a9ac3df4e0181fd}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa3eb43e6ef5f4beae1a9ac3df4e0181fd}} 
+wmngr\+\_\+state\+\_\+fallback&Connection failed, falling back to previous config. \\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{wmngr\_state\_max@{wmngr\_state\_max}!wifi\_manager.h@{wifi\_manager.h}}\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_max@{wmngr\_state\_max}}}\mbox{\Hypertarget{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa44e8d79d3baba58f5821dc2812a55a7a}\label{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa44e8d79d3baba58f5821dc2812a55a7a}} 
+wmngr\+\_\+state\+\_\+max&Number of states. \\
+\hline
+
+\end{DoxyEnumFields}
+
+
+\subsection{Function Documentation}
+\mbox{\Hypertarget{wifi__manager_8h_aa12de12116cda3371bf5bbd4d817166f}\label{wifi__manager_8h_aa12de12116cda3371bf5bbd4d817166f}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_connect@{esp\_wmngr\_connect}}
+\index{esp\_wmngr\_connect@{esp\_wmngr\_connect}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_connect()}{esp\_wmngr\_connect()}}
+{\footnotesize\ttfamily esp\+\_\+err\+\_\+t esp\+\_\+wmngr\+\_\+connect (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+Connect to currently configured AP. \begin{DoxyReturn}{Returns}
+E\+S\+P\+\_\+\+OK on success, E\+S\+P\+\_\+\+E\+R\+R\+\_\+$\ast$ otherwise 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_a732c809074fa26f2bf144022e38f294c}\label{wifi__manager_8h_a732c809074fa26f2bf144022e38f294c}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_disconnect@{esp\_wmngr\_disconnect}}
+\index{esp\_wmngr\_disconnect@{esp\_wmngr\_disconnect}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_disconnect()}{esp\_wmngr\_disconnect()}}
+{\footnotesize\ttfamily esp\+\_\+err\+\_\+t esp\+\_\+wmngr\+\_\+disconnect (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+Disconnect from currently configured AP. \begin{DoxyReturn}{Returns}
+E\+S\+P\+\_\+\+OK on success, E\+S\+P\+\_\+\+E\+R\+R\+\_\+$\ast$ otherwise 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_ad9d09c09e61c519a78ff7bb3245d2891}\label{wifi__manager_8h_ad9d09c09e61c519a78ff7bb3245d2891}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_get\_cfg@{esp\_wmngr\_get\_cfg}}
+\index{esp\_wmngr\_get\_cfg@{esp\_wmngr\_get\_cfg}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_get\_cfg()}{esp\_wmngr\_get\_cfg()}}
+{\footnotesize\ttfamily esp\+\_\+err\+\_\+t esp\+\_\+wmngr\+\_\+get\+\_\+cfg (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structwifi__cfg}{wifi\+\_\+cfg}} $\ast$}]{cfg }\end{DoxyParamCaption})}
+
+Get current Wi\+Fi Manager configuration. 
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ out}}  & {\em cfg} & Pointer to a \mbox{\hyperlink{structwifi__cfg}{wifi\+\_\+cfg}} struct the current configuration will be copied into. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+E\+S\+P\+\_\+\+OK on success, E\+S\+P\+\_\+\+E\+R\+R\+\_\+$\ast$ otherwise. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_a78ede058666fc6a1a3119c47ca4716ff}\label{wifi__manager_8h_a78ede058666fc6a1a3119c47ca4716ff}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_get\_scan@{esp\_wmngr\_get\_scan}}
+\index{esp\_wmngr\_get\_scan@{esp\_wmngr\_get\_scan}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_get\_scan()}{esp\_wmngr\_get\_scan()}}
+{\footnotesize\ttfamily struct \mbox{\hyperlink{structscan__data}{scan\+\_\+data}}$\ast$ esp\+\_\+wmngr\+\_\+get\+\_\+scan (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+Get a pointer to a set of AP scan data.
+
+Fetches a reference counted pointer to the latest set of AP scan Data. Caller must at some point release the data by calling \mbox{\hyperlink{wifi__manager_8h_a900f5c724c90f9acb81e823185acf3c5}{esp\+\_\+wmngr\+\_\+put\+\_\+scan}}.
+
+\begin{DoxyReturn}{Returns}
+Pointer to a \mbox{\hyperlink{structscan__data}{scan\+\_\+data}} or N\+U\+LL 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_a0d05736f568d0e3671d5c6b5233dab5a}\label{wifi__manager_8h_a0d05736f568d0e3671d5c6b5233dab5a}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_get\_state@{esp\_wmngr\_get\_state}}
+\index{esp\_wmngr\_get\_state@{esp\_wmngr\_get\_state}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_get\_state()}{esp\_wmngr\_get\_state()}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccef}{wmngr\+\_\+state}} esp\+\_\+wmngr\+\_\+get\+\_\+state (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+Fetch current Wi\+FI Manager state. \begin{DoxyReturn}{Returns}
+Current state \mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccef}{wmngr\+\_\+state}} 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_a908df21269b51cfc2152f28d85145867}\label{wifi__manager_8h_a908df21269b51cfc2152f28d85145867}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_init@{esp\_wmngr\_init}}
+\index{esp\_wmngr\_init@{esp\_wmngr\_init}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_init()}{esp\_wmngr\_init()}}
+{\footnotesize\ttfamily esp\+\_\+err\+\_\+t esp\+\_\+wmngr\+\_\+init (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+Initialise the Wi\+Fi Manager.
+
+Calling this function will initialise the Wi\+Fi Manger. It must be called before any other esp\+\_\+wmngr function.
+
+\begin{DoxyReturn}{Returns}
+E\+S\+P\+\_\+\+OK on success, E\+S\+P\+\_\+\+E\+R\+R\+\_\+$\ast$ otherwise. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_a90343e35448090427750e9cf25ad33ba}\label{wifi__manager_8h_a90343e35448090427750e9cf25ad33ba}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_is\_connected@{esp\_wmngr\_is\_connected}}
+\index{esp\_wmngr\_is\_connected@{esp\_wmngr\_is\_connected}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_is\_connected()}{esp\_wmngr\_is\_connected()}}
+{\footnotesize\ttfamily bool esp\+\_\+wmngr\+\_\+is\+\_\+connected (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+Query current connection status. \begin{DoxyReturn}{Returns}
+true if device is connected to AP, false otherwise 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_a900f5c724c90f9acb81e823185acf3c5}\label{wifi__manager_8h_a900f5c724c90f9acb81e823185acf3c5}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_put\_scan@{esp\_wmngr\_put\_scan}}
+\index{esp\_wmngr\_put\_scan@{esp\_wmngr\_put\_scan}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_put\_scan()}{esp\_wmngr\_put\_scan()}}
+{\footnotesize\ttfamily void esp\+\_\+wmngr\+\_\+put\+\_\+scan (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structscan__data}{scan\+\_\+data}} $\ast$}]{data }\end{DoxyParamCaption})}
+
+Drop a reference to a scan data set, possibly freeing it. 
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em data} & Reference to scan data set. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+Void 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_abbb9b00873b40b99e3d2b62b2ae1b058}\label{wifi__manager_8h_abbb9b00873b40b99e3d2b62b2ae1b058}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_set\_cfg@{esp\_wmngr\_set\_cfg}}
+\index{esp\_wmngr\_set\_cfg@{esp\_wmngr\_set\_cfg}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_set\_cfg()}{esp\_wmngr\_set\_cfg()}}
+{\footnotesize\ttfamily esp\+\_\+err\+\_\+t esp\+\_\+wmngr\+\_\+set\+\_\+cfg (\begin{DoxyParamCaption}\item[{struct \mbox{\hyperlink{structwifi__cfg}{wifi\+\_\+cfg}} $\ast$}]{new }\end{DoxyParamCaption})}
+
+Set a new Wi\+Fi Manager configuration.
+
+This function is used to set a new Wi\+Fi Manager configuration. The current configuration is backed up and an asynchronous update process is triggered.
+
+If setting the new configuration succeeds, the state reported by \mbox{\hyperlink{wifi__manager_8h_a0d05736f568d0e3671d5c6b5233dab5a}{esp\+\_\+wmngr\+\_\+get\+\_\+state}} will change to \mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefac9686d9646295e6c849054058601e8a3}{wmngr\+\_\+state\+\_\+connected}} (in S\+TA or A\+P\+S\+TA mode) or \mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa41ca5963fd23eee073d864d3d4d551be}{wmngr\+\_\+state\+\_\+idle}} (in AP mode). If the new configuration fails, the device will revert to the previous configuration and set the state to \mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa5de108d139875565ba4c04a6cb0f6331}{wmngr\+\_\+state\+\_\+failed}}.
+
+
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\texttt{ in}}  & {\em New} & Wi\+Fi Manager configuration to be set. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+E\+S\+P\+\_\+\+OK if update was triggered, E\+S\+P\+\_\+\+E\+R\+R\+\_\+$\ast$ otherwise. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_acc0927bd73e14d887a5685f96c34f11d}\label{wifi__manager_8h_acc0927bd73e14d887a5685f96c34f11d}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_start\_scan@{esp\_wmngr\_start\_scan}}
+\index{esp\_wmngr\_start\_scan@{esp\_wmngr\_start\_scan}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_start\_scan()}{esp\_wmngr\_start\_scan()}}
+{\footnotesize\ttfamily esp\+\_\+err\+\_\+t esp\+\_\+wmngr\+\_\+start\+\_\+scan (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+Start AP scan.
+
+Calling this function will trigger a scan for available A\+Ps. Scanning will start as soon as the device is in a stable state (idle, connected, failed). Once the scan has completed, the acquired data can be fetched by calling \mbox{\hyperlink{wifi__manager_8h_a78ede058666fc6a1a3119c47ca4716ff}{esp\+\_\+wmngr\+\_\+get\+\_\+scan}}.
+
+\begin{DoxyReturn}{Returns}
+E\+S\+P\+\_\+\+OK on success, E\+S\+P\+\_\+\+E\+R\+R\+\_\+$\ast$ otherwise. 
+\end{DoxyReturn}
+\mbox{\Hypertarget{wifi__manager_8h_aa7669e05b4a0e8a782b8ed1b91f36ad5}\label{wifi__manager_8h_aa7669e05b4a0e8a782b8ed1b91f36ad5}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!esp\_wmngr\_start\_wps@{esp\_wmngr\_start\_wps}}
+\index{esp\_wmngr\_start\_wps@{esp\_wmngr\_start\_wps}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{esp\_wmngr\_start\_wps()}{esp\_wmngr\_start\_wps()}}
+{\footnotesize\ttfamily esp\+\_\+err\+\_\+t esp\+\_\+wmngr\+\_\+start\+\_\+wps (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+Connect to AP with W\+PS.
+
+Trigger a connection attemp to an AP using W\+PS. Can only be used if device is in a stable state (idle, connected, failed). \begin{DoxyReturn}{Returns}
+E\+S\+P\+\_\+\+OK if W\+PS is started, E\+S\+P\+\_\+\+E\+R\+R\+\_\+$\ast$ otherwise. 
+\end{DoxyReturn}
+
+
+\subsection{Variable Documentation}
+\mbox{\Hypertarget{wifi__manager_8h_af85a5ed5ad1627ffd6729a9432afe873}\label{wifi__manager_8h_af85a5ed5ad1627ffd6729a9432afe873}} 
+\index{wifi\_manager.h@{wifi\_manager.h}!wmngr\_state\_names@{wmngr\_state\_names}}
+\index{wmngr\_state\_names@{wmngr\_state\_names}!wifi\_manager.h@{wifi\_manager.h}}
+\subsubsection{\texorpdfstring{wmngr\_state\_names}{wmngr\_state\_names}}
+{\footnotesize\ttfamily const char$\ast$ wmngr\+\_\+state\+\_\+names\mbox{[}\mbox{\hyperlink{wifi__manager_8h_acfa752b31a99436ae37776ac0124ccefa44e8d79d3baba58f5821dc2812a55a7a}{wmngr\+\_\+state\+\_\+max}}\mbox{]}}
+
+Array of strings describing current state. 

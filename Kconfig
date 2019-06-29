@@ -1,0 +1,47 @@
+menu "WiFi Manager Configuration"
+
+menuconfig WMNGR_ENABLED
+    bool "WiFi Manager"
+    help
+        Select this option to enable the Wifi Manager component
+
+config WMNGR_TASK
+    bool "Run WiFi Manager as Task"
+    depends on WMNGR_ENABLED
+    default true
+    help
+        Create a dedicated task for WiFi Manager. If not set,
+        WiFi Manager will use the system timer and may interfere
+        with other processes. If unsure, say Y
+
+config WMNGR_TASK_STACK
+    int "WiFi Manager task stack size"
+    depends on WMNGR_TASK
+    default 2048
+
+config WMNGR_TASK_PRIO
+    int "WiFi Manager task priority"
+    depends on WMNGR_TASK
+    default 4
+	
+config WMNGR_AP_SSID
+    string "WiFi Manager default AP SSID"
+    depends on WMNGR_ENABLED
+    default "ESP WiFi Manager"
+
+config WMNGR_AP_IP
+    string "WiFi Manager default AP IP address"
+    depends on WMNGR_ENABLED
+    default "192.168.4.1"
+
+config WMNGR_AP_GW
+    string "WiFi Manager default AP gateway"
+    default "192.168.4.1"
+    depends on WMNGR_ENABLED
+
+config WMNGR_AP_MASK
+    string "WiFi Manager default AP netmask"
+    depends on WMNGR_ENABLED
+    default "255.255.255.0"
+
+endmenu
