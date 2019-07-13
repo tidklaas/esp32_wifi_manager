@@ -767,10 +767,9 @@ static void handle_wifi(TimerHandle_t timer)
             wifi_scan_done();
         }
 
-        /* Check the SCAN bits and re-schedule if neccessary. */
+        /* Check the SCAN bits and re-schedule if necessary. */
         events = xEventGroupGetBits(wifi_events);
         if(events & (BIT_SCAN_START | BIT_SCAN_DONE)){
-            xEventGroupSetBits(wifi_events, BIT_TRIGGER);
             delay = CFG_DELAY;
         }
     }
@@ -778,14 +777,12 @@ static void handle_wifi(TimerHandle_t timer)
 on_exit:
     xSemaphoreGive(cfg_state.lock);
 
-#if !defined(CONFIG_WMNGR_TASK)
     if(delay > 0){
         /* We are in a transitional state, re-arm the timer. */
         if(xTimerChangePeriod(config_timer, delay, CFG_DELAY) != pdPASS){
             cfg_state.state = wmngr_state_failed;
         }
     }
-#endif
 
     ESP_LOGD(TAG, "[%s] Leaving. State: %s delay: %d",
              __func__, wmngr_state_names[cfg_state.state], delay);
@@ -797,6 +794,8 @@ static void handle_timer(TimerHandle_t timer)
 {
     ESP_LOGD(TAG, "[%s] Called.\n", __FUNCTION__);
 #if defined(CONFIG_WMNGR_TASK)
+    /* Reset timer to regular tick rate and trigger the task. */
+    (void) xTimerChangePeriod(timer, CFG_TICKS, CFG_DELAY);
     xEventGroupSetBits(wifi_events, BIT_TRIGGER);
 #else
     handle_wifi(timer);
