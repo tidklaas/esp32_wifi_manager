@@ -86,6 +86,6 @@ bool esp_wmngr_is_connected(void);
 esp_err_t esp_wmngr_connect(void);
 esp_err_t esp_wmngr_disconnect(void);
 enum wmngr_state esp_wmngr_get_state(void);
-bool wmngr_nvs_valid(void);
+bool esp_wmngr_nvs_valid(void);
 
 #endif // ESP_WIFI_MANAGER_H

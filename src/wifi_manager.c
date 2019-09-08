@@ -1084,7 +1084,8 @@ void esp_wmngr_task(void *pvParameters)
 /** Initialise the WiFi Manager.
  *
  * Calling this function will initialise the WiFi Manger. It must be called
- * before any other esp_wmngr function.
+ * after initialising the NVS, default event loop, and TCP adapter and before
+ * calling any other esp_wmngr function.
  *
  * @return ESP_OK on success, ESP_ERR_* otherwise.
  */
@@ -1410,7 +1411,7 @@ esp_err_t esp_wmngr_start_scan(void)
 /** Get a pointer to a set of AP scan data.
  *
  * Fetches a reference counted pointer to the latest set of AP scan
- * Data. Caller must at some point release the data by calling 
+ * data. Caller must at some point release the data by calling
  * #esp_wmngr_put_scan.
  *
  * @return Pointer to a #scan_data or NULL
@@ -1485,7 +1486,7 @@ enum wmngr_state esp_wmngr_get_state(void)
 /** Check if a valid configuration is stored in NVS.
  * @return true if valid config is found, false otherwise.
  */
-bool wmngr_nvs_valid(void)
+bool esp_wmngr_nvs_valid(void)
 {
     struct wifi_cfg cfg;
     esp_err_t result;
