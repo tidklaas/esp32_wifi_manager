@@ -60,9 +60,11 @@ struct scan_data_ref {
     struct scan_data data;
 };
 
-/* This holds all the information needed to transition from the current  *\
- * to the requested WiFi configuration. See handle_config_timer() and    *
-\* update_wifi() on how to use this.                                     */
+/*
+ * This holds all the information needed to transition from the current
+ * to the requested WiFi configuration. See handle_config_timer() and
+ * update_wifi() on how to use this.
+ */
 struct wifi_cfg_state {
     SemaphoreHandle_t lock;
     TickType_t cfg_timestamp;
@@ -191,8 +193,10 @@ static void wifi_scan_done(void)
         goto on_exit;
     }
 
-    /* Limit number of records to fetch. Prevents possible DoS by tricking   *\
-    \* us into allocating storage for a very large amount of scan results.   */
+    /*
+     * Limit number of records to fetch. Prevents possible DoS by tricking
+     * us into allocating storage for a very large amount of scan results.
+     */
     if(num_aps > MAX_NUM_APS){
         ESP_LOGI(TAG, "Limiting AP records to %d (Actually found %d)",
                  MAX_NUM_APS, num_aps);
@@ -219,8 +223,10 @@ static void wifi_scan_done(void)
     result = esp_wifi_scan_get_ap_records(&(new->data.num_records),
                                           new->data.ap_records);
 
-    /* Scan data has either been fetched or lost at this point, so *\
-    \* clear flags irregardless of returned status.                */
+    /*
+     * Scan data has either been fetched or lost at this point, so
+     * clear flags irregardless of returned status.
+     */
     xEventGroupClearBits(wifi_events, (BIT_SCAN_RUNNING | BIT_SCAN_DONE));
 
     if(result != ESP_OK){
@@ -230,17 +236,21 @@ static void wifi_scan_done(void)
 
     ESP_LOGI(TAG, "Scan done: found %d APs", num_aps);
 
-    /* Make new scan data available. */
-    /* The new data set will be assigned to the global pointer. Fetch    *\
-    \* another reference so it will not be freed on function exit.       */
+    /*
+     * Make new scan data available.
+     * The new data set will be assigned to the global pointer. Fetch
+     * another reference so it will not be freed on function exit.
+     */
     kref_get(&(new->ref_cnt));
 
     old = cfg_state.scan_ref;
     cfg_state.scan_ref = new;
 
     if(old != NULL){
-        /* Drop global reference to old data set so it will be freed     *\
-        \* when the last connection using it gets closed.                */
+        /*
+         * Drop global reference to old data set so it will be freed
+         * when the last connection using it gets closed.
+         */
         esp_wmngr_put_scan(&(old->data));
     }
 
@@ -260,10 +270,12 @@ static void wifi_scan_start(void)
     wifi_mode_t mode;
     esp_err_t result;
 
-    /* Make sure we do not try to start a scan while the WiFi config is  *\
-     * in a transitional state. If we bail out here, the SCAN_START bit  *
-     * will be kept set and the scan will start once the WiFi config has *
-    \* settled down again.                                               */
+    /*
+     * Make sure we do not try to start a scan while the WiFi config is
+     * in a transitional state. If we bail out here, the SCAN_START bit
+     * will be kept set and the scan will start once the WiFi config has
+     * settled down again.
+     */
     if(cfg_state.state > wmngr_state_idle){
         ESP_LOGI(TAG, "[%s] WiFi connecting, not starting scan.",
                  __func__);
@@ -532,9 +544,11 @@ static esp_err_t set_wifi_cfg(struct wifi_cfg *cfg)
 
     ESP_LOGD(TAG, "[%s] Called.", __FUNCTION__);
 
-    /* FIXME: we should check for errors. OTOH, this is also used  *\
-     *        for the fall-back mechanism, so aborting on error is *
-    \*        probably a bad idea.                                 */
+    /*
+     * FIXME: we should check for errors. OTOH, this is also used
+     *        for the fall-back mechanism, so aborting on error is
+     *        probably a bad idea.
+     */
 
     memmove(&cfg_state.current, cfg, sizeof(*cfg));
 
@@ -686,25 +700,26 @@ on_exit:
     return result;
 }
 
-/* This function is called from the config_timer and handles all WiFi        *\
- * configuration changes. It takes its information from the global           *
- * cfg_state struct and tries to set the WiFi configuration to the one       *
- * found in the "new" member. If things go wrong, it will try to fall        *
- * back to the configuration found in "saved". This should minimise          *
- * the risk of users locking themselves out of the device by setting         *
- * wrong WiFi credentials in STA-only mode.                                  *
- *                                                                           *
- * This function will keep triggering itself until it reaches a "stable"     *
- * (idle, connected, failed) state in cfg_state.state.                       *
- *                                                                           *
- * cfg_state must not be modified without first obtaining the cfg_state.lock *
- * mutex and then checking that cfg_state.state is in a stable state.        *
- * To set a new configuration, just store the current config to .saved,      *
- * update .new to the desired config, set .state to wmngr_state_update         *
- * and start the config_timer.                                               *
- * To connect to an AP with WPS, save the current state, set .state          *
- * to wmngr_state_wps_start and start the config_timer.                        *
- \*                                                                          */
+/*
+ * This function is called from the config_timer and handles all WiFi
+ * configuration changes. It takes its information from the global
+ * cfg_state struct and tries to set the WiFi configuration to the one
+ * found in the "new" member. If things go wrong, it will try to fall
+ * back to the configuration found in "saved". This should minimise
+ * the risk of users locking themselves out of the device by setting
+ * wrong WiFi credentials in STA-only mode.
+ *
+ * This function will keep triggering itself until it reaches a "stable"
+ * (idle, connected, failed) state in cfg_state.state.
+ *
+ * cfg_state must not be modified without first obtaining the cfg_state.lock
+ * mutex and then checking that cfg_state.state is in a stable state.
+ * To set a new configuration, just store the current config to .saved,
+ * update .new to the desired config, set .state to wmngr_state_update
+ * and start the config_timer.
+ * To connect to an AP with WPS, save the current state, set .state
+ * to wmngr_state_wps_start and start the config_timer.
+ */
 static void handle_wifi(TimerHandle_t timer)
 {
     bool connected;
@@ -716,9 +731,11 @@ static void handle_wifi(TimerHandle_t timer)
 
     ESP_LOGD(TAG, "[%s] Called.\n", __FUNCTION__);
 
-    /* If we can not get the config state lock, we try to reschedule the    *\
-     * timer. If that also fails, we are SOL...                             *
-    \* Maybe we should trigger a reboot.                                    */
+    /*
+     * If we can not get the config state lock, we try to reschedule the
+     * timer. If that also fails, we are SOL...
+     * Maybe we should trigger a reboot.
+     */
     if(xSemaphoreTake(cfg_state.lock, 0) != pdTRUE){
         if(xTimerChangePeriod(config_timer, CFG_DELAY, CFG_DELAY) != pdPASS){
             ESP_LOGE(TAG, "[%s] Failure to get config lock and change timer.",
@@ -749,8 +766,10 @@ static void handle_wifi(TimerHandle_t timer)
     switch(cfg_state.state){
     case wmngr_state_wps_start:
         ESP_LOGI(TAG, "[%s] Starting WPS.", __func__);
-        /* Try connecting to AP with WPS. First, tear down any connection *\
-        \* we might currently have.                                       */
+        /*
+         * Try connecting to AP with WPS. First, tear down any connection
+         * we might currently have.
+         */
         result = get_wifi_cfg(&cfg_state.new);
         if(result != ESP_OK){
             ESP_LOGE(TAG, "[%s] WPS start: Error getting current config.",
@@ -810,8 +829,10 @@ static void handle_wifi(TimerHandle_t timer)
                         __func__, result, esp_err_to_name(result));
             }
 
-            /* Get received STA config, then force APSTA mode, set  *\
-            \* connect flag and trigger update.                     */
+            /*
+             * Get received STA config, then force APSTA mode, set
+             * connect flag and trigger update.
+             */
             get_wifi_cfg(&cfg_state.new);
             cfg_state.new.mode = WIFI_MODE_APSTA;
             cfg_state.new.sta_connect = true;
@@ -870,8 +891,10 @@ static void handle_wifi(TimerHandle_t timer)
                 ESP_LOGE(TAG, "[%s] Saving config failed.", __func__);
             }
         } else if(time_after(now, (cfg_state.cfg_timestamp + CFG_TIMEOUT))){
-            /* Timeout while waiting for connection. Try falling back to the *\
-            \* saved configuration.                                          */
+            /*
+             * Timeout while waiting for connection. Try falling back to the
+             * saved configuration.
+             */
             ESP_LOGI(TAG, "[%s] Timed out waiting for connection to AP.",
                         __func__);
             cfg_state.state = wmngr_state_fallback;
@@ -893,8 +916,10 @@ static void handle_wifi(TimerHandle_t timer)
         break;
     case wmngr_state_connected:
         if(!connected){
-            /* We should be connected, but are not. Change into update state *\
-            \* so current configuration gets re-applied.                     */
+            /*
+             * We should be connected, but are not. Change into update state
+             * so current configuration gets re-applied.
+             */
             ESP_LOGI(TAG, "[%s] Connection to AP lost, retrying.", __func__);
             cfg_state.state = wmngr_state_update;
             delay = CFG_DELAY;
@@ -950,9 +975,11 @@ static void handle_timer(TimerHandle_t timer)
 #endif
 }
 
-/* Update state information from system events. This function must be   *\
- * called from the main event handler to keep this module updated about *
-\* the current system state.                                            */
+/*
+ * Update state information from system events. This function must be
+ * called from the main event handler to keep this module updated about
+ * the current system state.
+ */
 static void event_handler(void* args, esp_event_base_t base,
                           int32_t id, void* data)
 {
@@ -1103,8 +1130,10 @@ esp_err_t esp_wmngr_init(void)
         goto on_exit;
     }
 
-    /* Restore saved WiFi config or fall back to compiled-in defaults.     *\
-    \* Setting state to update will trigger applying this config.           */
+    /*
+     * Restore saved WiFi config or fall back to compiled-in defaults.
+     * Setting state to update will trigger applying this config.
+     */
     set_defaults(&cfg_state.saved);
     result = get_saved_config(&cfg_state.new);
     if(result != ESP_OK){
@@ -1236,8 +1265,10 @@ esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
     cfg_state.new.is_default = false;
     update = false;
 
-    /* Do some naive checks to see if the new configuration is an actual   *\
-    \* change. Should be more thorough by actually comparing the elements. */
+    /*
+     * Do some naive checks to see if the new configuration is an actual
+     * change. Should be more thorough by actually comparing the elements.
+     */
     if(cfg_state.new.mode != cfg_state.saved.mode){
         update = true;
     }
@@ -1256,9 +1287,11 @@ esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
         update = true;
     }
 
-    /* If new config is different, trigger asynchronous update. This gives *\
-     * the httpd some time to send out the reply before possibly tearing   *
-    \* down the connection.                                                */
+    /*
+     * If new config is different, trigger asynchronous update. This gives
+     * the httpd some time to send out the reply before possibly tearing
+     * down the connection.
+     */
     if(update == true){
         cfg_state.state = wmngr_state_update;
         if(xTimerChangePeriod(config_timer, CFG_DELAY, CFG_DELAY) != pdPASS){

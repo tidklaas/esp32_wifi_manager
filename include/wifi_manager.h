@@ -55,8 +55,10 @@ enum wmngr_state {
 /** Array of strings describing current state. */
 extern const char *wmngr_state_names[wmngr_state_max];
 
-/* Holds complete WiFi config for both STA and AP, the mode and whether       *\
-\* the WiFi should connect to an AP in STA or APSTA mode.                     */
+/*
+ * Holds complete WiFi config for both STA and AP, the mode and whether
+ * the WiFi should connect to an AP in STA or APSTA mode.
+ */
 struct wifi_cfg {
     bool is_default;    /*!< True if this is the factory default config. */
     wifi_mode_t mode;   /*!< WiFi mode (AP, AP+STA, STA) */
