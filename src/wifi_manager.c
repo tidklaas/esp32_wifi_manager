@@ -28,7 +28,7 @@
 #include "freertos/timers.h"
 #include "freertos/event_groups.h"
 
-#include "esp_event_loop.h"
+#include "esp_event.h"
 #include "esp_wifi_types.h"
 #include "esp_wifi.h"
 #include "esp_wps.h"
@@ -110,15 +110,15 @@ static void event_handler(void* args, esp_event_base_t base,
                           int32_t id, void* data);
 static esp_err_t get_saved_config(struct wifi_cfg *cfg);
 
-/**
- *
+/** Set configuration from compiled-in defaults.
  */
 static void set_defaults(struct wifi_cfg *cfg)
 {
     size_t len;
 
     memset(cfg, 0x0, sizeof(*cfg));
-    cfg->mode = WIFI_MODE_AP;
+    cfg->is_default = true;
+    cfg->mode = WIFI_MODE_APSTA;
    
     if(!(ip4addr_aton(CONFIG_WMNGR_AP_IP, &(cfg->ap_ip_info.ip)))){
         ESP_LOGE(TAG, "[%s] Invalid default AP IP: %s. "
@@ -155,7 +155,7 @@ static void set_defaults(struct wifi_cfg *cfg)
     cfg->ap.ap.ssid_len = len;
 }
 
-/* Free scan data, should only be called kref_put(). */
+/* Free scan data, should only be called through kref_put(). */
 static void free_scan_data(struct kref *ref)
 {
     struct scan_data_ref *data;
@@ -311,10 +311,17 @@ on_exit:
     return;
 }
 
+/** Read saved configuration from NVS.
+ *
+ * Read configuration from NVS and store it in the struct wifi_cfg.
+ * @param[out] cfg Configuration read from NVS.
+ * @return ESP_OK if valid configuration was found in NVS, ESP_ERR_* otherwise.
+ */
 static esp_err_t get_saved_config(struct wifi_cfg *cfg)
 {
     nvs_handle handle;
     size_t len;
+    uint32_t tmp;
     esp_err_t result;
 
     result = ESP_OK;
@@ -327,25 +334,92 @@ static esp_err_t get_saved_config(struct wifi_cfg *cfg)
         return result;
     }
 
-    len = sizeof(*cfg);
-    result = nvs_get_blob(handle, "config", cfg, &len);
-    if(result != ESP_OK || len != sizeof(*cfg)){
-        ESP_LOGE(TAG, "[%s] Reading config failed.", __func__);
+    /* Read back the base type components of the struct wifi_cfg. */
+    result = nvs_get_u32(handle, "mode", &(tmp));
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+    cfg->mode = (wifi_mode_t) tmp;
+
+    result = nvs_get_u32(handle, "sta_static", &tmp);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+    cfg->sta_static = (bool) tmp;
+
+    result = nvs_get_u32(handle, "sta_connect", &tmp);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+    cfg->sta_connect = (bool) tmp;
+
+    /*
+     * The esp-idf types are stored as binary blobs. This is problematic
+     * because their memory layout and padding might change between esp-idf
+     * releases or by using a different toolchain or compiler options.
+     * We do a very basic sanity check by comparing the types' sizes to the
+     * records' lengths, but this is not guaranteed to catch every case.
+     */
+
+    len = sizeof(cfg->ap);
+    result = nvs_get_blob(handle, "ap", &(cfg->ap), &len);
+    if(result != ESP_OK || len != sizeof(cfg->ap)){
+        result = (result != ESP_OK) ? result : ESP_ERR_NOT_FOUND;
+        goto on_exit;
+    }
+
+    len = sizeof(cfg->sta);
+    result = nvs_get_blob(handle, "sta", &(cfg->sta), &len);
+    if(result != ESP_OK || len != sizeof(cfg->sta)){
+        result = (result != ESP_OK) ? result : ESP_ERR_NOT_FOUND;
+        goto on_exit;
+    }
+
+    len = sizeof(cfg->ap_ip_info);
+    result = nvs_get_blob(handle, "ap_ip", &(cfg->ap_ip_info), &len);
+    if(result != ESP_OK || len != sizeof(cfg->ap_ip_info)){
+        result = (result != ESP_OK) ? result : ESP_ERR_NOT_FOUND;
+        goto on_exit;
+    }
+
+    len = sizeof(cfg->sta_ip_info);
+    result = nvs_get_blob(handle, "sta_ip", &(cfg->sta_ip_info), &len);
+    if(result != ESP_OK || len != sizeof(cfg->sta_ip_info)){
+        result = (result != ESP_OK) ? result : ESP_ERR_NOT_FOUND;
+        goto on_exit;
+    }
+
+    len = sizeof(cfg->sta_dns_info);
+    result = nvs_get_blob(handle, "sta_dns", &(cfg->sta_dns_info), &len);
+    if(result != ESP_OK || len != sizeof(cfg->sta_dns_info)){
+        result = (result != ESP_OK) ? result : ESP_ERR_NOT_FOUND;
         goto on_exit;
     }
 
 on_exit:
+    if(result != ESP_OK){
+        ESP_LOGE(TAG, "[%s] Reading config failed.", __func__);
+    }
+
     nvs_close(handle);
     return result;
 }
 
+/** Save configuration to NVS.
+ *
+ * Store the wifi_cfg in NVS. The previously stored configuration will be
+ * erased and not be recovered on error, so on return there will either be
+ * a valid config or no config at all stored in the NVS.
+ * This guarantees that the device is either reachable by the last valid
+ * configuration or recoverable by the factory default settings.
+ *
+ * @param[in] cfg Configuration to be saved.
+ * @return ESP_OK if configuration was saved, ESP_ERR_* otherwise.
+ */
 static esp_err_t save_config(struct wifi_cfg *cfg)
 {
     nvs_handle handle;
-    size_t len;
     esp_err_t result;
-
-    result = ESP_OK;
 
     result = nvs_open(WMNGR_NAMESPACE, NVS_READWRITE, &handle);
     if(result != ESP_OK){
@@ -353,18 +427,90 @@ static esp_err_t save_config(struct wifi_cfg *cfg)
         return result;
     }
 
-    /* FIXME: don't save config as binary blob. */
-    len = sizeof(*cfg);
-    result = nvs_set_blob(handle, "config", cfg, len);
+    /*
+     * Erase the previous config so that we can be sure that we do not end up
+     * with a mix of the old and new in case of a power-fail.
+     *
+     * FIXME: We should use a two slot mechanism so that the old config will
+     *        not be touched until the new one has been written successfully.
+     */
+    result = nvs_erase_all(handle);
     if(result != ESP_OK){
-        ESP_LOGE(TAG, "[%s] Reading config failed.", __func__);
         goto on_exit;
     }
 
-   result = nvs_commit(handle);
+    result = nvs_commit(handle);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    /* No point in saving the factory default settings. */
+    if(cfg->is_default){
+        result = ESP_OK;
+        goto on_exit;
+    }
+
+    /*
+     * Write all elements of the struct wifi_cfg individually. This gives
+     * us a chance to extend it later without forcing the user into a
+     * "factory reset" after a firmware update.
+     */
+
+    result = nvs_set_u32(handle, "mode", cfg->mode);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    result = nvs_set_u32(handle, "sta_static", cfg->sta_static);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    result = nvs_set_u32(handle, "sta_connect", cfg->sta_connect);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    /* Store the esp-idf types as blobs. */
+    /* FIXME: we should also store them component-wise. */
+    result = nvs_set_blob(handle, "ap", &(cfg->ap), sizeof(cfg->ap));
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    result = nvs_set_blob(handle, "sta", &(cfg->sta), sizeof(cfg->sta));
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    result = nvs_set_blob(handle, "ap_ip", &(cfg->ap_ip_info),
+                            sizeof(cfg->ap_ip_info));
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    result = nvs_set_blob(handle, "sta_ip", &(cfg->sta_ip_info),
+                            sizeof(cfg->sta_ip_info));
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    result = nvs_set_blob(handle, "sta_dns", &(cfg->sta_dns_info),
+                            sizeof(cfg->sta_dns_info));
+    if(result != ESP_OK){
+        goto on_exit;
+    }
 
 on_exit:
+    if(result != ESP_OK){
+        /* we do not want to leave a half-written config lying around. */
+        ESP_LOGE(TAG, "[%s] Writing config failed.", __func__);
+        (void) nvs_erase_all(handle);
+    }
+
+    (void) nvs_commit(handle);
     nvs_close(handle);
+
     return result;
 }
 
@@ -469,6 +615,8 @@ static esp_err_t get_wifi_cfg(struct wifi_cfg *cfg)
     esp_err_t result;
 
     result = ESP_OK;
+    memset(cfg, 0x0, sizeof(*cfg));
+
     cfg->sta_connect = sta_connected();
 
     result = esp_wifi_get_mode(&(cfg->mode));
@@ -1048,7 +1196,7 @@ on_exit:
  * If the new configuration fails, the device will revert to the previous
  * configuration and set the state to #wmngr_state_failed.
  *
- * @param[in] New WiFi Manager configuration to be set.
+ * @param[in] new New WiFi Manager configuration to be set.
  * @return ESP_OK if update was triggered, ESP_ERR_* otherwise.
  */
 esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
@@ -1085,6 +1233,7 @@ esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
     }
 
     memmove(&(cfg_state.new), new, sizeof(cfg_state.new));
+    cfg_state.new.is_default = false;
     update = false;
 
     /* Do some naive checks to see if the new configuration is an actual   *\
@@ -1210,15 +1359,19 @@ on_exit:
  */
 esp_err_t esp_wmngr_start_scan(void)
 {
+    esp_err_t result;
+
+    result = ESP_OK;
     xEventGroupSetBits(wifi_events, (BIT_SCAN_START | BIT_TRIGGER));
 
 #if !defined(CONFIG_WMNGR_TASK)
     if(xTimerChangePeriod(config_timer, CFG_DELAY, CFG_DELAY) != pdPASS){
         cfg_state.state = wmngr_state_failed;
+        result = ESP_FAIL;
     }
 #endif
 
-    return ESP_OK;
+    return result;
 }
 
 /** Get a pointer to a set of AP scan data.
@@ -1294,4 +1447,17 @@ esp_err_t esp_wmngr_disconnect(void)
 enum wmngr_state esp_wmngr_get_state(void)
 {
     return cfg_state.state;
+}
+
+/** Check if a valid configuration is stored in NVS.
+ * @return true if valid config is found, false otherwise.
+ */
+bool wmngr_nvs_valid(void)
+{
+    struct wifi_cfg cfg;
+    esp_err_t result;
+
+    result = get_saved_config(&cfg);
+
+    return result == ESP_OK;
 }

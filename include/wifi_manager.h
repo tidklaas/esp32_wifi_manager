@@ -26,7 +26,6 @@
 #include <stdbool.h>
 #include "esp_err.h"
 #include "esp_wifi_types.h"
-#include "esp_event_loop.h"
 #include "tcpip_adapter.h"
 
 /** A set of AP scan data. */
@@ -59,6 +58,7 @@ extern const char *wmngr_state_names[wmngr_state_max];
 /* Holds complete WiFi config for both STA and AP, the mode and whether       *\
 \* the WiFi should connect to an AP in STA or APSTA mode.                     */
 struct wifi_cfg {
+    bool is_default;    /*!< True if this is the factory default config. */
     wifi_mode_t mode;   /*!< WiFi mode (AP, AP+STA, STA) */
     wifi_config_t ap;   /*!< Configuration of the AP component. */
     tcpip_adapter_ip_info_t ap_ip_info;
@@ -84,5 +84,6 @@ bool esp_wmngr_is_connected(void);
 esp_err_t esp_wmngr_connect(void);
 esp_err_t esp_wmngr_disconnect(void);
 enum wmngr_state esp_wmngr_get_state(void);
+bool wmngr_nvs_valid(void);
 
 #endif // ESP_WIFI_MANAGER_H
