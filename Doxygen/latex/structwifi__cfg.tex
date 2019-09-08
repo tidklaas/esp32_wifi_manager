@@ -1,7 +1,9 @@
-\hypertarget{structwifi__cfg}{}\section{wifi\+\_\+cfg Struct Reference}
+\hypertarget{structwifi__cfg}{}\doxysection{wifi\+\_\+cfg Struct Reference}
 \label{structwifi__cfg}\index{wifi\_cfg@{wifi\_cfg}}
-\subsection*{Data Fields}
+\doxysubsection*{Data Fields}
 \begin{DoxyCompactItemize}
+\item 
+bool \mbox{\hyperlink{structwifi__cfg_a939f080f03b623b43ab8fe123ebc8634}{is\+\_\+default}}
 \item 
 wifi\+\_\+mode\+\_\+t \mbox{\hyperlink{structwifi__cfg_a5e9dbc35ab4d5b816a9f0affc13e0068}{mode}}
 \item 
@@ -21,53 +23,59 @@ bool \mbox{\hyperlink{structwifi__cfg_afde977289add1255d8b86de8111f6696}{sta\+\_
 \end{DoxyCompactItemize}
 
 
-\subsection{Field Documentation}
+\doxysubsection{Field Documentation}
 \mbox{\Hypertarget{structwifi__cfg_a80d3c5c24182f476ffe57d664909a4a0}\label{structwifi__cfg_a80d3c5c24182f476ffe57d664909a4a0}} 
 \index{wifi\_cfg@{wifi\_cfg}!ap@{ap}}
 \index{ap@{ap}!wifi\_cfg@{wifi\_cfg}}
-\subsubsection{\texorpdfstring{ap}{ap}}
+\doxysubsubsection{\texorpdfstring{ap}{ap}}
 {\footnotesize\ttfamily wifi\+\_\+config\+\_\+t wifi\+\_\+cfg\+::ap}
 
 Configuration of the AP component. \mbox{\Hypertarget{structwifi__cfg_a937ab9f789423344a14f78a249f59aa4}\label{structwifi__cfg_a937ab9f789423344a14f78a249f59aa4}} 
 \index{wifi\_cfg@{wifi\_cfg}!ap\_ip\_info@{ap\_ip\_info}}
 \index{ap\_ip\_info@{ap\_ip\_info}!wifi\_cfg@{wifi\_cfg}}
-\subsubsection{\texorpdfstring{ap\_ip\_info}{ap\_ip\_info}}
+\doxysubsubsection{\texorpdfstring{ap\_ip\_info}{ap\_ip\_info}}
 {\footnotesize\ttfamily tcpip\+\_\+adapter\+\_\+ip\+\_\+info\+\_\+t wifi\+\_\+cfg\+::ap\+\_\+ip\+\_\+info}
 
-The IP address of the AP interface. \mbox{\Hypertarget{structwifi__cfg_a5e9dbc35ab4d5b816a9f0affc13e0068}\label{structwifi__cfg_a5e9dbc35ab4d5b816a9f0affc13e0068}} 
+The IP address of the AP interface. \mbox{\Hypertarget{structwifi__cfg_a939f080f03b623b43ab8fe123ebc8634}\label{structwifi__cfg_a939f080f03b623b43ab8fe123ebc8634}} 
+\index{wifi\_cfg@{wifi\_cfg}!is\_default@{is\_default}}
+\index{is\_default@{is\_default}!wifi\_cfg@{wifi\_cfg}}
+\doxysubsubsection{\texorpdfstring{is\_default}{is\_default}}
+{\footnotesize\ttfamily bool wifi\+\_\+cfg\+::is\+\_\+default}
+
+True if this is the factory default config. \mbox{\Hypertarget{structwifi__cfg_a5e9dbc35ab4d5b816a9f0affc13e0068}\label{structwifi__cfg_a5e9dbc35ab4d5b816a9f0affc13e0068}} 
 \index{wifi\_cfg@{wifi\_cfg}!mode@{mode}}
 \index{mode@{mode}!wifi\_cfg@{wifi\_cfg}}
-\subsubsection{\texorpdfstring{mode}{mode}}
+\doxysubsubsection{\texorpdfstring{mode}{mode}}
 {\footnotesize\ttfamily wifi\+\_\+mode\+\_\+t wifi\+\_\+cfg\+::mode}
 
 Wi\+Fi mode (AP, A\+P+\+S\+TA, S\+TA) \mbox{\Hypertarget{structwifi__cfg_ade4bdacd8530339bc13e489670f6c886}\label{structwifi__cfg_ade4bdacd8530339bc13e489670f6c886}} 
 \index{wifi\_cfg@{wifi\_cfg}!sta@{sta}}
 \index{sta@{sta}!wifi\_cfg@{wifi\_cfg}}
-\subsubsection{\texorpdfstring{sta}{sta}}
+\doxysubsubsection{\texorpdfstring{sta}{sta}}
 {\footnotesize\ttfamily wifi\+\_\+config\+\_\+t wifi\+\_\+cfg\+::sta}
 
 Configuration of the S\+TA component. \mbox{\Hypertarget{structwifi__cfg_afde977289add1255d8b86de8111f6696}\label{structwifi__cfg_afde977289add1255d8b86de8111f6696}} 
 \index{wifi\_cfg@{wifi\_cfg}!sta\_connect@{sta\_connect}}
 \index{sta\_connect@{sta\_connect}!wifi\_cfg@{wifi\_cfg}}
-\subsubsection{\texorpdfstring{sta\_connect}{sta\_connect}}
+\doxysubsubsection{\texorpdfstring{sta\_connect}{sta\_connect}}
 {\footnotesize\ttfamily bool wifi\+\_\+cfg\+::sta\+\_\+connect}
 
 True if device should connect to AP in S\+TA mode. \mbox{\Hypertarget{structwifi__cfg_ad0a27da90280dcce96376d404bebebe8}\label{structwifi__cfg_ad0a27da90280dcce96376d404bebebe8}} 
 \index{wifi\_cfg@{wifi\_cfg}!sta\_dns\_info@{sta\_dns\_info}}
 \index{sta\_dns\_info@{sta\_dns\_info}!wifi\_cfg@{wifi\_cfg}}
-\subsubsection{\texorpdfstring{sta\_dns\_info}{sta\_dns\_info}}
+\doxysubsubsection{\texorpdfstring{sta\_dns\_info}{sta\_dns\_info}}
 {\footnotesize\ttfamily tcpip\+\_\+adapter\+\_\+dns\+\_\+info\+\_\+t wifi\+\_\+cfg\+::sta\+\_\+dns\+\_\+info\mbox{[}T\+C\+P\+I\+P\+\_\+\+A\+D\+A\+P\+T\+E\+R\+\_\+\+D\+N\+S\+\_\+\+M\+AX\mbox{]}}
 
 IP addresses of D\+NS servers to use in static IP mode. \mbox{\Hypertarget{structwifi__cfg_aa7483bfab435a803a70a5043385dcc05}\label{structwifi__cfg_aa7483bfab435a803a70a5043385dcc05}} 
 \index{wifi\_cfg@{wifi\_cfg}!sta\_ip\_info@{sta\_ip\_info}}
 \index{sta\_ip\_info@{sta\_ip\_info}!wifi\_cfg@{wifi\_cfg}}
-\subsubsection{\texorpdfstring{sta\_ip\_info}{sta\_ip\_info}}
+\doxysubsubsection{\texorpdfstring{sta\_ip\_info}{sta\_ip\_info}}
 {\footnotesize\ttfamily tcpip\+\_\+adapter\+\_\+ip\+\_\+info\+\_\+t wifi\+\_\+cfg\+::sta\+\_\+ip\+\_\+info}
 
 The IP address of the S\+TA interface in static mode. \mbox{\Hypertarget{structwifi__cfg_abd668cb59692251a5382dad9e4e6c51e}\label{structwifi__cfg_abd668cb59692251a5382dad9e4e6c51e}} 
 \index{wifi\_cfg@{wifi\_cfg}!sta\_static@{sta\_static}}
 \index{sta\_static@{sta\_static}!wifi\_cfg@{wifi\_cfg}}
-\subsubsection{\texorpdfstring{sta\_static}{sta\_static}}
+\doxysubsubsection{\texorpdfstring{sta\_static}{sta\_static}}
 {\footnotesize\ttfamily bool wifi\+\_\+cfg\+::sta\+\_\+static}
 
 True if S\+TA interface should use static IP and D\+NS configuration. When false, D\+H\+CP will be used. 

@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['num_5frecords',['num_records',['../structscan__data.html#a477cdf33bfcdc8ecfcc058ae22edd2f1',1,'scan_data']]]
+  ['mode_67',['mode',['../structwifi__cfg.html#a5e9dbc35ab4d5b816a9f0affc13e0068',1,'wifi_cfg']]]
 ];

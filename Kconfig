@@ -1,4 +1,4 @@
-menu "WiFi Manager Configuration"
+menu "WiFi Manager"
 
 menuconfig WMNGR_ENABLED
     bool "WiFi Manager"

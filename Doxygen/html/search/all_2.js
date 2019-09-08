@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['klist_5fhead',['klist_head',['../structklist__head.html',1,'']]],
-  ['kref',['kref',['../structkref.html',1,'']]]
+  ['is_5fdefault_15',['is_default',['../structwifi__cfg.html#a939f080f03b623b43ab8fe123ebc8634',1,'wifi_cfg']]]
 ];
