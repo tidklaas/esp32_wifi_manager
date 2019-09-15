@@ -61,6 +61,8 @@ extern const char *wmngr_state_names[wmngr_state_max];
  */
 struct wifi_cfg {
     bool is_default;    /*!< True if this is the factory default config. */
+    bool is_valid;      /*!< True if this config has been applied successfully
+                             before. */
     wifi_mode_t mode;   /*!< WiFi mode (AP, AP+STA, STA) */
     wifi_config_t ap;   /*!< Configuration of the AP component. */
     tcpip_adapter_ip_info_t ap_ip_info;

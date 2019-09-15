@@ -34,10 +34,11 @@
 #include "esp_wps.h"
 #include "esp_err.h"
 #include "nvs_flash.h"
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
+//#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 
 #include "lwip/ip4.h"
+#include "lwip/ip_addr.h"
 
 #include "wifi_manager.h"
 #include "kutils.h"
@@ -67,13 +68,12 @@ struct scan_data_ref {
  */
 struct wifi_cfg_state {
     SemaphoreHandle_t lock;
-    TickType_t cfg_timestamp;
+    TickType_t cfg_timestamp; /* Timestamp of last config change. */
     enum wmngr_state state;
-    struct wifi_cfg saved;
-    struct wifi_cfg current;
-    struct wifi_cfg new;
-    TickType_t scan_timestamp;
-    struct scan_data_ref *scan_ref;
+    struct wifi_cfg saved; /* Active config when _set_cfg() was last called. */
+    struct wifi_cfg current; /* Config that is currently being applied. */
+    struct wifi_cfg new; /* Config last set, might not have been applied yet.*/
+    struct scan_data_ref *scan_ref; /* Pointer to current AP scan data. */
 };
 
 const char *wmngr_state_names[wmngr_state_max] = {
@@ -120,8 +120,9 @@ static void set_defaults(struct wifi_cfg *cfg)
 
     memset(cfg, 0x0, sizeof(*cfg));
     cfg->is_default = true;
+    cfg->is_valid = true;
     cfg->mode = WIFI_MODE_APSTA;
-   
+
     if(!(ip4addr_aton(CONFIG_WMNGR_AP_IP, &(cfg->ap_ip_info.ip)))){
         ESP_LOGE(TAG, "[%s] Invalid default AP IP: %s. "
                       "Using 192.168.4.1 instead.",
@@ -581,6 +582,14 @@ static esp_err_t set_wifi_cfg(struct wifi_cfg *cfg)
         }
         if(cfg->sta_static){
             (void) tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
+
+            result = tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA,
+                                                &cfg->sta_ip_info);
+            if(result != ESP_OK){
+                ESP_LOGE(TAG, "[%s] tcpip_adapter_set_ip_info() STA: %d %s",
+                        __func__, result, esp_err_to_name(result));
+            }
+
             for(idx = 0; idx < ARRAY_SIZE(cfg->sta_dns_info); ++idx){
                 if(ip_addr_isany_val(cfg->sta_dns_info[idx].ip)){
                     continue;
@@ -590,9 +599,8 @@ static esp_err_t set_wifi_cfg(struct wifi_cfg *cfg)
                                                     idx,
                                                     &(cfg->sta_dns_info[idx]));
                 if(result != ESP_OK){
-                    ESP_LOGE(TAG, "[%s] Setting DNS server IP failed.", 
+                    ESP_LOGE(TAG, "[%s] Setting DNS server IP failed.",
                             __func__);
-                    goto on_exit;
                 }
             }
         } else {
@@ -617,11 +625,80 @@ static esp_err_t set_wifi_cfg(struct wifi_cfg *cfg)
         }
     }
 
+    return result;
+}
+
+static bool cfgs_are_equal(struct wifi_cfg *a, struct wifi_cfg *b)
+{
+    unsigned int idx;
+    bool result;
+
+    result = false;
+
+    /*
+     * Do some naive checks to see if the new configuration is an actual
+     * change. Should be more thorough by actually comparing the elements.
+     */
+    if(a->mode != b->mode){
+        goto on_exit;
+    }
+
+    if(a->mode == WIFI_MODE_AP || a->mode == WIFI_MODE_APSTA){
+        if(!ip4_addr_cmp(&(a->ap_ip_info.ip), &(b->ap_ip_info.ip))){
+            goto on_exit;
+        }
+
+        if(memcmp(&(a->ap), &(b->ap), sizeof(a->ap))){
+            goto on_exit;
+        }
+    }
+
+    if((a->mode == WIFI_MODE_STA || a->mode == WIFI_MODE_APSTA)
+       && memcmp(&(a->sta), &(b->sta), sizeof(a->sta)))
+    {
+        goto on_exit;
+    }
+
+    if(a->sta_connect != b->sta_connect){
+        goto on_exit;
+    }
+
+    if(a->sta_static != b->sta_static){
+        goto on_exit;
+    }
+
+    if(a->sta_static){
+        if(!ip4_addr_cmp(&(a->sta_ip_info.ip), &(b->sta_ip_info.ip))){
+            goto on_exit;
+        }
+
+        if(!ip4_addr_cmp(&(a->sta_ip_info.netmask), &(b->sta_ip_info.netmask))){
+            goto on_exit;
+        }
+
+        if(!ip4_addr_cmp(&(a->sta_ip_info.gw), &(b->sta_ip_info.gw))){
+            goto on_exit;
+        }
+
+        for(idx = 0; idx < ARRAY_SIZE(a->sta_dns_info); ++idx){
+            if(!ip_addr_cmp(&(a->sta_dns_info[idx].ip),
+                            &(b->sta_dns_info[idx].ip)))
+            {
+                goto on_exit;
+            }
+        }
+    }
+
+    result = true;
+
 on_exit:
     return result;
 }
 
-/* Helper to store current WiFi configuration into a struct wifi_cfg. */
+/*
+ * Helper to fetch current WiFi configuration from the system and store it in
+ * a wifi_cfg struct.
+ */
 static esp_err_t get_wifi_cfg(struct wifi_cfg *cfg)
 {
     tcpip_adapter_dhcp_status_t dhcp_status;
@@ -631,7 +708,14 @@ static esp_err_t get_wifi_cfg(struct wifi_cfg *cfg)
     result = ESP_OK;
     memset(cfg, 0x0, sizeof(*cfg));
 
-    cfg->sta_connect = sta_connected();
+    /*
+     * Unless we are currently connected, we can not know for sure if
+     * esp_wifi_connect() has been called. If we are not connected, we just
+     * take the value from cfg_state.current.
+     */
+    if(sta_connected() || cfg_state.current.sta_connect){
+        cfg->sta_connect = true;
+    }
 
     result = esp_wifi_get_mode(&(cfg->mode));
     if(result != ESP_OK){
@@ -653,12 +737,21 @@ static esp_err_t get_wifi_cfg(struct wifi_cfg *cfg)
 
     if(dhcp_status == TCPIP_ADAPTER_DHCP_STOPPED){
         cfg->sta_static = 1;
+
+        result = tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA,
+                                            &cfg->sta_ip_info);
+        if(result != ESP_OK){
+            ESP_LOGE(TAG, "[%s] tcpip_adapter_get_ip_info() STA: %d %s",
+                    __func__, result, esp_err_to_name(result));
+            goto on_exit;
+        }
+
         for(idx = 0; idx < ARRAY_SIZE(cfg->sta_dns_info); ++idx){
             result = tcpip_adapter_get_dns_info(TCPIP_ADAPTER_IF_STA,
                                                 idx,
                                                 &(cfg->sta_dns_info[idx]));
             if(result != ESP_OK){
-                ESP_LOGE(TAG, "[%s] Getting DNS server IP failed.", 
+                ESP_LOGE(TAG, "[%s] Getting DNS server IP failed.",
                          __func__);
                 goto on_exit;
             }
@@ -671,6 +764,16 @@ static esp_err_t get_wifi_cfg(struct wifi_cfg *cfg)
         ESP_LOGE(TAG, "[%s] Error fetching AP config.", __func__);
         goto on_exit;
     }
+
+    result = tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP,
+                                        &cfg->ap_ip_info);
+    if(result != ESP_OK){
+        ESP_LOGE(TAG, "[%s] tcpip_adapter_get_ip_info() AP: %d %s",
+                __func__, result, esp_err_to_name(result));
+        goto on_exit;
+    }
+
+    cfg->is_valid = true;
 
 on_exit:
     return result;
@@ -820,8 +923,10 @@ static void handle_wifi(TimerHandle_t timer)
     case wmngr_state_wps_active:
         /* WPS is running. Check for events and timeout. */
         if(events & BIT_WPS_SUCCESS){
-            /* WPS succeeded. Disable WPS and use the received credentials *\
-             * to connect to the AP by transitioning to the updating state.*/
+            /*
+             * WPS succeeded. Disable WPS and use the received credentials
+             * to connect to the AP by transitioning to the updating state.
+             */
             ESP_LOGI(TAG, "[%s] WPS success.", __func__);
             result = esp_wifi_wps_disable();
             if(result != ESP_OK){
@@ -873,6 +978,7 @@ static void handle_wifi(TimerHandle_t timer)
         if(cfg_state.new.mode == WIFI_MODE_AP || !cfg_state.new.sta_connect){
             /* AP-only mode or not connecting, we are done. */
             cfg_state.state = wmngr_state_idle;
+            cfg_state.current.is_valid = 1;
         } else {
             /* System should now connect to the AP. */
             cfg_state.cfg_timestamp = now;
@@ -886,19 +992,41 @@ static void handle_wifi(TimerHandle_t timer)
             /* We have a connection! \o/ */
             ESP_LOGI(TAG, "[%s] Established connection to AP.", __func__);
             cfg_state.state = wmngr_state_connected;
-            result = save_config(&cfg_state.new);
+
+            /*
+             * New config is valid. Make sure we do not fall back to previous
+             * config if the AP goes away and then try saving it to the NVS.
+             */
+            cfg_state.current.is_valid = true;
+            memcpy(&cfg_state.saved, &cfg_state.current,
+                    sizeof(cfg_state.saved));
+
+            result = save_config(&cfg_state.current);
             if(result != ESP_OK){
                 ESP_LOGE(TAG, "[%s] Saving config failed.", __func__);
             }
         } else if(time_after(now, (cfg_state.cfg_timestamp + CFG_TIMEOUT))){
-            /*
-             * Timeout while waiting for connection. Try falling back to the
-             * saved configuration.
-             */
-            ESP_LOGI(TAG, "[%s] Timed out waiting for connection to AP.",
+            if(cfg_state.current.is_valid){
+                /*
+                 * We know that the config is valid, so just keep prodding
+                 * the WiFI core and hope for the best.
+                 */
+                result = esp_wifi_connect();
+                if(result != ESP_OK){
+                    ESP_LOGE(TAG, "[%s] esp_wifi_connect(): %d %s",
+                             __func__, result, esp_err_to_name(result));
+                }
+                delay = CFG_TICKS;
+            } else {
+                /*
+                 * Timeout while waiting for connection. Try falling back to
+                 * the saved configuration.
+                 */
+                ESP_LOGI(TAG, "[%s] Timed out waiting for connection to AP.",
                         __func__);
-            cfg_state.state = wmngr_state_fallback;
-            delay = CFG_DELAY;
+                cfg_state.state = wmngr_state_fallback;
+                delay = CFG_DELAY;
+            }
         } else {
             /* Twiddle our thumbs and keep waiting for the connection.  */
             delay = CFG_TICKS;
@@ -921,6 +1049,7 @@ static void handle_wifi(TimerHandle_t timer)
              * so current configuration gets re-applied.
              */
             ESP_LOGI(TAG, "[%s] Connection to AP lost, retrying.", __func__);
+            memcpy(&cfg_state.new, &cfg_state.current, sizeof(cfg_state.new));
             cfg_state.state = wmngr_state_update;
             delay = CFG_DELAY;
         }
@@ -1077,7 +1206,7 @@ void esp_wmngr_task(void *pvParameters)
 }
 #endif // defined(CONFIG_WMNGR_TASK)
 
-/*****************************************************************************\ 
+/*****************************************************************************\
  *  API functions                                                            *
 \*****************************************************************************/
 
@@ -1135,13 +1264,20 @@ esp_err_t esp_wmngr_init(void)
      * Restore saved WiFi config or fall back to compiled-in defaults.
      * Setting state to update will trigger applying this config.
      */
-    set_defaults(&cfg_state.saved);
     result = get_saved_config(&cfg_state.new);
     if(result != ESP_OK){
         ESP_LOGI(TAG, "[%s] No saved config found, setting defaults",
                  __func__);
         set_defaults(&cfg_state.new);
     }
+
+    /* Any config read from NVS or restored from defaults should be valid. */
+    cfg_state.new.is_valid = true;
+
+    /* Make sure we do not fall back to defaults if configured AP is down. */
+    memcpy(&cfg_state.saved, &cfg_state.new, sizeof(cfg_state.saved));
+    memcpy(&cfg_state.current, &cfg_state.new, sizeof(cfg_state.current));
+
     cfg_state.state = wmngr_state_update;
 
     tcpip_adapter_init();
@@ -1183,7 +1319,7 @@ esp_err_t esp_wmngr_init(void)
     }
 
 #if defined(CONFIG_WMNGR_TASK)
-    status = xTaskCreate(&esp_wmngr_task, "WMngr_Task", 
+    status = xTaskCreate(&esp_wmngr_task, "WMngr_Task",
                         CONFIG_WMNGR_TASK_STACK,
                         NULL,
                         CONFIG_WMNGR_TASK_PRIO,
@@ -1231,8 +1367,6 @@ on_exit:
  */
 esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
 {
-    bool connected;
-    bool update;
     esp_err_t result;
 
     if(xSemaphoreTake(cfg_state.lock, CFG_DELAY) != pdTRUE){
@@ -1246,8 +1380,6 @@ esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
         goto on_exit;
     }
 
-    result = ESP_OK;
-
     /* Save current configuration for fall-back. */
     result = get_wifi_cfg(&(cfg_state.saved));
     if(result != ESP_OK){
@@ -1256,44 +1388,16 @@ esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
         goto on_exit;
     }
 
-    /* Clear station configuration if we are not connected to an AP. */
-    connected = sta_connected();
-    if(!connected){
-        memset(&(cfg_state.saved.sta), 0x0, sizeof(cfg_state.saved.sta));
-    }
-
-    memmove(&(cfg_state.new), new, sizeof(cfg_state.new));
-    cfg_state.new.is_default = false;
-    update = false;
-
-    /*
-     * Do some naive checks to see if the new configuration is an actual
-     * change. Should be more thorough by actually comparing the elements.
-     */
-    if(cfg_state.new.mode != cfg_state.saved.mode){
-        update = true;
-    }
-
-    if((new->mode == WIFI_MODE_AP || new->mode == WIFI_MODE_APSTA)
-       && memcmp(&(cfg_state.new.ap), &(cfg_state.saved.ap),
-                    sizeof(cfg_state.new.ap)))
-    {
-        update = true;
-    }
-
-    if((new->mode == WIFI_MODE_STA || new->mode == WIFI_MODE_APSTA)
-       && memcmp(&(cfg_state.new.sta), &(cfg_state.saved.sta),
-                    sizeof(cfg_state.new.sta)))
-    {
-        update = true;
-    }
-
     /*
      * If new config is different, trigger asynchronous update. This gives
      * the httpd some time to send out the reply before possibly tearing
      * down the connection.
      */
-    if(update == true){
+    if(!cfgs_are_equal(new, &(cfg_state.saved))){
+        memmove(&(cfg_state.new), new, sizeof(cfg_state.new));
+        cfg_state.new.is_default = false;
+        cfg_state.new.is_valid = false;
+
         cfg_state.state = wmngr_state_update;
         if(xTimerChangePeriod(config_timer, CFG_DELAY, CFG_DELAY) != pdPASS){
             cfg_state.state = wmngr_state_failed;
@@ -1301,6 +1405,8 @@ esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
             goto on_exit;
         }
     }
+
+    result = ESP_OK;
 
 on_exit:
     xSemaphoreGive(cfg_state.lock);
@@ -1460,7 +1566,7 @@ bool esp_wmngr_is_connected(void)
 }
 
 /** Connect to currently configured AP.
- * @return ESP_OK on success, ESP_ERR_* otherwise 
+ * @return ESP_OK on success, ESP_ERR_* otherwise
  */
 esp_err_t esp_wmngr_connect(void)
 {
@@ -1468,7 +1574,7 @@ esp_err_t esp_wmngr_connect(void)
 }
 
 /** Disconnect from currently configured AP.
- * @return ESP_OK on success, ESP_ERR_* otherwise 
+ * @return ESP_OK on success, ESP_ERR_* otherwise
  */
 esp_err_t esp_wmngr_disconnect(void)
 {
