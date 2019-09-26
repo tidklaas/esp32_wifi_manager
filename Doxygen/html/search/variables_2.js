@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['mode_67',['mode',['../structwifi__cfg.html#a5e9dbc35ab4d5b816a9f0affc13e0068',1,'wifi_cfg']]]
+  ['mode_77',['mode',['../structwifi__cfg.html#a5e9dbc35ab4d5b816a9f0affc13e0068',1,'wifi_cfg']]]
 ];

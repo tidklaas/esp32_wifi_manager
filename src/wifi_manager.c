@@ -34,7 +34,7 @@
 #include "esp_wps.h"
 #include "esp_err.h"
 #include "nvs_flash.h"
-//#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
+#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 
 #include "lwip/ip4.h"
@@ -47,6 +47,7 @@
 static const char *TAG = "wifimngr";
 
 #define WMNGR_NAMESPACE "esp_wmngr"
+#define NVS_CFG_VER     1
 
 #define MAX_AP_CLIENTS  3
 #define MAX_NUM_APS     32
@@ -61,11 +62,7 @@ struct scan_data_ref {
     struct scan_data data;
 };
 
-/*
- * This holds all the information needed to transition from the current
- * to the requested WiFi configuration. See handle_config_timer() and
- * update_wifi() on how to use this.
- */
+/* This holds all the state and configuration data needed at runtime. */
 struct wifi_cfg_state {
     SemaphoreHandle_t lock;
     TickType_t cfg_timestamp; /* Timestamp of last config change. */
@@ -77,6 +74,8 @@ struct wifi_cfg_state {
 };
 
 const char *wmngr_state_names[wmngr_state_max] = {
+    "Deinit",
+    "Stopped",
     "Failed",
     "Connected",
     "Idle",
@@ -88,7 +87,7 @@ const char *wmngr_state_names[wmngr_state_max] = {
     "Fall Back"
 };
 
-static struct wifi_cfg_state cfg_state;
+static struct wifi_cfg_state cfg_state = {.state = wmngr_state_deinit};
 
 /* For keeping track of system events. */
 #define BIT_TRIGGER             BIT0
@@ -102,6 +101,7 @@ static struct wifi_cfg_state cfg_state;
 #define BIT_WPS_SUCCESS         BIT8
 #define BIT_WPS_FAILED          BIT9
 #define BITS_WPS    (BIT_WPS_SUCCESS | BIT_WPS_FAILED)
+#define BIT_STOPPED             BIT10
 
 static EventGroupHandle_t wifi_events = NULL;
 
@@ -347,6 +347,17 @@ static esp_err_t get_saved_config(struct wifi_cfg *cfg)
         return result;
     }
 
+    /* Make sure we know how to handle the stored configuration. */
+    result = nvs_get_u32(handle, "version", &tmp);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    if(tmp > NVS_CFG_VER){
+        result = ESP_ERR_INVALID_VERSION;
+        goto on_exit;
+    }
+
     /* Read back the base type components of the struct wifi_cfg. */
     result = nvs_get_u32(handle, "mode", &(tmp));
     if(result != ESP_OK){
@@ -418,6 +429,33 @@ on_exit:
     return result;
 }
 
+static esp_err_t clear_config(void)
+{
+    nvs_handle handle;
+    esp_err_t result;
+
+    result = nvs_open(WMNGR_NAMESPACE, NVS_READWRITE, &handle);
+    if(result != ESP_OK){
+        ESP_LOGE(TAG, "[%s] nvs_open() failed.", __func__);
+        return result;
+    }
+
+    result = nvs_erase_all(handle);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+    result = nvs_commit(handle);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
+
+on_exit:
+    nvs_close(handle);
+
+    return result;
+}
+
 /** Save configuration to NVS.
  *
  * Store the wifi_cfg in NVS. The previously stored configuration will be
@@ -447,12 +485,7 @@ static esp_err_t save_config(struct wifi_cfg *cfg)
      * FIXME: We should use a two slot mechanism so that the old config will
      *        not be touched until the new one has been written successfully.
      */
-    result = nvs_erase_all(handle);
-    if(result != ESP_OK){
-        goto on_exit;
-    }
-
-    result = nvs_commit(handle);
+    result = clear_config();
     if(result != ESP_OK){
         goto on_exit;
     }
@@ -468,6 +501,11 @@ static esp_err_t save_config(struct wifi_cfg *cfg)
      * us a chance to extend it later without forcing the user into a
      * "factory reset" after a firmware update.
      */
+
+    result = nvs_set_u32(handle, "version", NVS_CFG_VER);
+    if(result != ESP_OK){
+        goto on_exit;
+    }
 
     result = nvs_set_u32(handle, "mode", cfg->mode);
     if(result != ESP_OK){
@@ -525,6 +563,31 @@ on_exit:
     nvs_close(handle);
 
     return result;
+}
+
+static esp_err_t load_config(void)
+{
+    esp_err_t result;
+
+    /*
+     * Restore saved WiFi config or fall back to compiled-in defaults.
+     * Setting state to update will trigger applying this config.
+     */
+    result = get_saved_config(&cfg_state.new);
+    if(result != ESP_OK){
+        ESP_LOGI(TAG, "[%s] No saved config found, setting defaults",
+                 __func__);
+        set_defaults(&cfg_state.new);
+    }
+
+    /* Any config read from NVS or restored from defaults should be valid. */
+    cfg_state.new.is_valid = true;
+
+    /* Make sure we do not fall back to defaults if configured AP is down. */
+    memcpy(&cfg_state.saved, &cfg_state.new, sizeof(cfg_state.saved));
+    memcpy(&cfg_state.current, &cfg_state.new, sizeof(cfg_state.current));
+
+    return ESP_OK;
 }
 
 /* Helper function to check if WiFi is connected in station mode. */
@@ -783,7 +846,18 @@ on_exit:
 static esp_err_t set_connect(bool connect)
 {
     struct wifi_cfg cfg;
+    EventBits_t events;
     esp_err_t result;
+
+    configASSERT(cfg_state.state != wmngr_state_deinit);
+    configASSERT(cfg_state.lock != NULL);
+
+    /* Abort if wifi manager has been stopped. */
+    events = xEventGroupGetBits(wifi_events);
+    if(events & BIT_STOPPED){
+        result = ESP_ERR_INVALID_STATE;
+        goto on_exit;
+    }
 
     result = esp_wmngr_get_cfg(&cfg);
     if(result != ESP_OK){
@@ -813,7 +887,7 @@ on_exit:
  * wrong WiFi credentials in STA-only mode.
  *
  * This function will keep triggering itself until it reaches a "stable"
- * (idle, connected, failed) state in cfg_state.state.
+ * (deinit, stopped, idle, connected, failed) state in cfg_state.state.
  *
  * cfg_state must not be modified without first obtaining the cfg_state.lock
  * mutex and then checking that cfg_state.state is in a stable state.
@@ -832,7 +906,8 @@ static void handle_wifi(TimerHandle_t timer)
     EventBits_t events;
     esp_err_t result;
 
-    ESP_LOGD(TAG, "[%s] Called.\n", __FUNCTION__);
+    ESP_LOGD(TAG, "[%s] Called. State: %s",
+             __func__, wmngr_state_names[cfg_state.state]);
 
     /*
      * If we can not get the config state lock, we try to reschedule the
@@ -848,15 +923,18 @@ static void handle_wifi(TimerHandle_t timer)
         return;
     }
 
-    ESP_LOGD(TAG, "[%s] Called. State: %s",
-             __func__, wmngr_state_names[cfg_state.state]);
-
     /* If delay gets set later, the timer will be re-scheduled on exit. */
     delay = 0;
 
+    /* Abort and stop timer if wifi manager has been stopped. */
+    events = xEventGroupGetBits(wifi_events);
+    if(events & BIT_STOPPED){
+        (void) xTimerStop(config_timer, CFG_TICKS);
+        goto on_exit;
+    }
+
     /* Gather various information about the current system state. */
     connected = sta_connected();
-    events = xEventGroupGetBits(wifi_events);
     now = xTaskGetTickCount();
 
     result = esp_wifi_get_mode(&mode);
@@ -1011,11 +1089,12 @@ static void handle_wifi(TimerHandle_t timer)
                  * We know that the config is valid, so just keep prodding
                  * the WiFI core and hope for the best.
                  */
-                result = esp_wifi_connect();
-                if(result != ESP_OK){
-                    ESP_LOGE(TAG, "[%s] esp_wifi_connect(): %d %s",
-                             __func__, result, esp_err_to_name(result));
-                }
+                ESP_LOGW(TAG, "[%s] Timeout connecting, re-applying config.",
+                        __func__);
+
+                memcpy(&cfg_state.new, &cfg_state.current,
+                        sizeof(cfg_state.new));
+                cfg_state.state = wmngr_state_update;
                 delay = CFG_TICKS;
             } else {
                 /*
@@ -1077,14 +1156,14 @@ static void handle_wifi(TimerHandle_t timer)
     }
 
 on_exit:
-    xSemaphoreGive(cfg_state.lock);
-
     if(delay > 0){
         /* We are in a transitional state, re-arm the timer. */
         if(xTimerChangePeriod(config_timer, delay, CFG_DELAY) != pdPASS){
             cfg_state.state = wmngr_state_failed;
         }
     }
+
+    xSemaphoreGive(cfg_state.lock);
 
     ESP_LOGD(TAG, "[%s] Leaving. State: %s delay: %d",
              __func__, wmngr_state_names[cfg_state.state], delay);
@@ -1095,6 +1174,7 @@ on_exit:
 static void handle_timer(TimerHandle_t timer)
 {
     ESP_LOGD(TAG, "[%s] Called.\n", __FUNCTION__);
+
 #if defined(CONFIG_WMNGR_TASK)
     /* Reset timer to regular tick rate and trigger the task. */
     (void) xTimerChangePeriod(timer, CFG_TICKS, CFG_DELAY);
@@ -1121,6 +1201,9 @@ static void event_handler(void* args, esp_event_base_t base,
     }
 
     old = xEventGroupGetBits(wifi_events);
+    if(old & BIT_STOPPED){
+        goto on_exit;
+    }
 
     if(base == WIFI_EVENT){
         switch(id){
@@ -1194,17 +1277,18 @@ on_exit:
 #if defined(CONFIG_WMNGR_TASK)
 void esp_wmngr_task(void *pvParameters)
 {
+    EventBits_t events;
     do{
-        /* Wait for and clear timer bit */
-        (void) xEventGroupWaitBits(wifi_events, BIT_TRIGGER,
-                                   true, false, portMAX_DELAY);
+        /* Wait for and clear timer bit. */
+        events = xEventGroupWaitBits(wifi_events, BIT_TRIGGER,
+                                     true, false, portMAX_DELAY);
 
-        xEventGroupClearBits(wifi_events, BIT_TRIGGER);
-
-        handle_wifi(config_timer);
+        if((events & BIT_TRIGGER)){
+            handle_wifi(config_timer);
+        }
     } while(1);
 }
-#endif // defined(CONFIG_WMNGR_TASK)
+#endif /* defined(CONFIG_WMNGR_TASK) */
 
 /*****************************************************************************\
  *  API functions                                                            *
@@ -1215,22 +1299,25 @@ void esp_wmngr_task(void *pvParameters)
  * Calling this function will initialise the WiFi Manger. It must be called
  * after initialising the NVS, default event loop, and TCP adapter and before
  * calling any other esp_wmngr function.
+ * After successfull initialisation the WiFi Manager will be in the "stopped"
+ * state. It may then be configured with #esp_wmngr_set_cfg() or directly
+ * started using #esp_wmngr_start().
  *
  * @return ESP_OK on success, ESP_ERR_* otherwise.
  */
 esp_err_t esp_wmngr_init(void)
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    BaseType_t status;
     esp_err_t result;
 
-    configASSERT(wifi_events == NULL);
+    configASSERT(cfg_state.state == wmngr_state_deinit);
     configASSERT(cfg_state.lock == NULL);
+    configASSERT(wifi_events == NULL);
     configASSERT(config_timer == NULL);
 
     result = ESP_OK;
     memset(&cfg_state, 0x0, sizeof(cfg_state));
-    cfg_state.state = wmngr_state_idle;
+    cfg_state.state = wmngr_state_deinit;
 
     wifi_events = xEventGroupCreate();
     if(wifi_events == NULL){
@@ -1238,6 +1325,9 @@ esp_err_t esp_wmngr_init(void)
         result = ESP_ERR_NO_MEM;
         goto on_exit;
     }
+
+    /* Make sure we do not handle any events until we have been started. */
+    xEventGroupSetBits(wifi_events, BIT_STOPPED);
 
     cfg_state.lock = xSemaphoreCreateMutex();
     if(cfg_state.lock == NULL){
@@ -1264,21 +1354,11 @@ esp_err_t esp_wmngr_init(void)
      * Restore saved WiFi config or fall back to compiled-in defaults.
      * Setting state to update will trigger applying this config.
      */
-    result = get_saved_config(&cfg_state.new);
+    result = load_config();
     if(result != ESP_OK){
-        ESP_LOGI(TAG, "[%s] No saved config found, setting defaults",
-                 __func__);
-        set_defaults(&cfg_state.new);
+        ESP_LOGE(TAG, "[%s] load_config() failed", __func__);
+        goto on_exit;
     }
-
-    /* Any config read from NVS or restored from defaults should be valid. */
-    cfg_state.new.is_valid = true;
-
-    /* Make sure we do not fall back to defaults if configured AP is down. */
-    memcpy(&cfg_state.saved, &cfg_state.new, sizeof(cfg_state.saved));
-    memcpy(&cfg_state.current, &cfg_state.new, sizeof(cfg_state.current));
-
-    cfg_state.state = wmngr_state_update;
 
     tcpip_adapter_init();
 
@@ -1311,13 +1391,6 @@ esp_err_t esp_wmngr_init(void)
         goto on_exit;
     }
 
-    status = xTimerStart(config_timer, CFG_TICKS);
-    if(status != pdPASS){
-        ESP_LOGE(TAG, "[%s] Starting config timer failed.", __func__);
-        result = ESP_ERR_NO_MEM;
-        goto on_exit;
-    }
-
 #if defined(CONFIG_WMNGR_TASK)
     status = xTaskCreate(&esp_wmngr_task, "WMngr_Task",
                         CONFIG_WMNGR_TASK_STACK,
@@ -1329,6 +1402,9 @@ esp_err_t esp_wmngr_init(void)
         result = ESP_ERR_NO_MEM;
     }
 #endif
+
+    cfg_state.state = wmngr_state_stopped;
+    xEventGroupSetBits(wifi_events, BIT_STOPPED);
 
 on_exit:
     if(result != ESP_OK){
@@ -1351,10 +1427,102 @@ on_exit:
     return result;
 }
 
+/** Start WiFi Manager
+ *
+ * (Re)starts the WiFi Manager operations by applying the last configuration
+ * either read from NVS or set via #esp_wmngr_set_cfg(). May only be called
+ * when WiFi Manager is in state #wmngr_state_stopped.
+ *
+ * @return ESP_OK on success, ESP_ERR_* otherwise.
+ */
+esp_err_t esp_wmngr_start(void)
+{
+    BaseType_t status;
+    esp_err_t result;
+
+    configASSERT(cfg_state.state != wmngr_state_deinit);
+    configASSERT(cfg_state.lock != NULL);
+
+    if(xSemaphoreTake(cfg_state.lock, CFG_DELAY) != pdTRUE){
+        ESP_LOGE(TAG, "[%s] Error taking mutex.", __func__);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if(cfg_state.state != wmngr_state_stopped){
+        ESP_LOGW(TAG, "[%s] WiFi Manager already running.", __func__);
+        result = ESP_ERR_INVALID_STATE;
+        goto on_exit;
+    }
+
+    status = xTimerStart(config_timer, CFG_TICKS);
+    if(status != pdPASS){
+        ESP_LOGE(TAG, "[%s] Starting config timer failed.", __func__);
+        result = ESP_FAIL;
+        goto on_exit;
+    }
+
+    cfg_state.state = wmngr_state_update;
+    xEventGroupClearBits(wifi_events, BIT_STOPPED);
+
+    result = ESP_OK;
+
+on_exit:
+    xSemaphoreGive(cfg_state.lock);
+    return result;
+}
+
+/** Stop WiFi Manager
+ *
+ * Stops all WiFi Manager operations and enter state #wmngr_state_stopped
+ * until #esp_wmngr_start() is called.
+ * A new configuration may be set by calling #esp_wmngr_set_cfg() while
+ * in stopped state.
+ *
+ * @return ESP_OK on success, ESP_ERR_* otherwise.
+ */
+esp_err_t esp_wmngr_stop(void)
+{
+    BaseType_t status;
+    esp_err_t result;
+
+    configASSERT(cfg_state.state != wmngr_state_deinit);
+    configASSERT(cfg_state.lock != NULL);
+
+    if(xSemaphoreTake(cfg_state.lock, CFG_DELAY) != pdTRUE){
+        ESP_LOGE(TAG, "[%s] Error taking mutex.", __func__);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if(cfg_state.state == wmngr_state_stopped){
+        ESP_LOGW(TAG, "[%s] WiFi Manager not running.", __func__);
+        result = ESP_ERR_INVALID_STATE;
+        goto on_exit;
+    }
+
+    xEventGroupSetBits(wifi_events, BIT_STOPPED);
+    cfg_state.state = wmngr_state_stopped;
+
+    status = xTimerStop(config_timer, CFG_TICKS);
+    if(status != pdPASS){
+        /* Not serious, we might just get some timer call backs later. */
+        ESP_LOGW(TAG, "[%s] Stopping config timer failed.", __func__);
+    }
+
+    result = ESP_OK;
+
+on_exit:
+    xSemaphoreGive(cfg_state.lock);
+
+    return result;
+}
+
 /** Set a new WiFi Manager configuration.
  *
  * This function is used to set a new WiFi Manager configuration. The current
  * configuration is backed up and an asynchronous update process is triggered.
+ *
+ * If WiFI Manager is in state #wmngr_state_stopped, the new config will be
+ * applied once esp_wmngr_start() is called.
  *
  * If setting the new configuration succeeds, the state reported by
  * #esp_wmngr_get_state will change to #wmngr_state_connected (in STA or
@@ -1363,11 +1531,14 @@ on_exit:
  * configuration and set the state to #wmngr_state_failed.
  *
  * @param[in] new New WiFi Manager configuration to be set.
- * @return ESP_OK if update was triggered, ESP_ERR_* otherwise.
+ * @return ESP_OK if config was set, ESP_ERR_* otherwise.
  */
 esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
 {
     esp_err_t result;
+
+    configASSERT(cfg_state.state != wmngr_state_deinit);
+    configASSERT(cfg_state.lock != NULL);
 
     if(xSemaphoreTake(cfg_state.lock, CFG_DELAY) != pdTRUE){
         ESP_LOGE(TAG, "[%s] Error taking mutex.", __func__);
@@ -1389,20 +1560,30 @@ esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *new)
     }
 
     /*
-     * If new config is different, trigger asynchronous update. This gives
-     * the httpd some time to send out the reply before possibly tearing
-     * down the connection.
+     * Always save new config if WiFi Manager is stopped. Otherwise check
+     * first if it is an actual configuration change.
      */
-    if(!cfgs_are_equal(new, &(cfg_state.saved))){
+    if(cfg_state.state == wmngr_state_stopped
+       || !cfgs_are_equal(new, &(cfg_state.saved)))
+    {
         memmove(&(cfg_state.new), new, sizeof(cfg_state.new));
         cfg_state.new.is_default = false;
         cfg_state.new.is_valid = false;
 
-        cfg_state.state = wmngr_state_update;
-        if(xTimerChangePeriod(config_timer, CFG_DELAY, CFG_DELAY) != pdPASS){
-            cfg_state.state = wmngr_state_failed;
-            result = ESP_ERR_TIMEOUT;
-            goto on_exit;
+        /*
+         * Trigger an asynchronous update if WiFi Manager is not currently
+         * stopped. Otherwise it will be applied once #esp_wmngr_start()
+         * gets called.
+         * This gives the httpd some time to send out the reply before possibly
+         * tearing down the connection.
+         */
+        if(cfg_state.state != wmngr_state_stopped){
+            cfg_state.state = wmngr_state_update;
+            if(xTimerChangePeriod(config_timer, CFG_DELAY, CFG_DELAY) !=pdPASS){
+                cfg_state.state = wmngr_state_failed;
+                result = ESP_ERR_TIMEOUT;
+                goto on_exit;
+            }
         }
     }
 
@@ -1421,6 +1602,9 @@ on_exit:
 esp_err_t esp_wmngr_get_cfg(struct wifi_cfg *cfg)
 {
     esp_err_t result;
+
+    configASSERT(cfg_state.state != wmngr_state_deinit);
+    configASSERT(cfg_state.lock != NULL);
 
     if(xSemaphoreTake(cfg_state.lock, CFG_DELAY) != pdTRUE){
         ESP_LOGE(TAG, "[%s] Error taking mutex.", __func__);
@@ -1451,8 +1635,16 @@ esp_err_t esp_wmngr_start_wps(void)
 {
     struct wifi_cfg cfg;
     esp_err_t result;
+    EventBits_t events;
 
-    result = ESP_OK;
+    configASSERT(cfg_state.state != wmngr_state_deinit);
+    configASSERT(cfg_state.lock != NULL);
+
+    /* Abort early if wifi manager has been stopped. */
+    events = xEventGroupGetBits(wifi_events);
+    if(events & BIT_STOPPED){
+        return ESP_ERR_INVALID_STATE;
+    }
 
     /* Make sure we are not in the middle of setting a new WiFi config. */
     if(xSemaphoreTake(cfg_state.lock, CFG_DELAY) != pdTRUE){
@@ -1461,7 +1653,7 @@ esp_err_t esp_wmngr_start_wps(void)
     }
 
     if(cfg_state.state > wmngr_state_idle){
-        ESP_LOGI(TAG, "[%s] WiFi change in progress.", __func__);
+        ESP_LOGI(TAG, "[%s] Can not change config in current state", __func__);
         result = ESP_ERR_INVALID_STATE;
         goto on_exit;
     }
@@ -1500,8 +1692,20 @@ on_exit:
 esp_err_t esp_wmngr_start_scan(void)
 {
     esp_err_t result;
+    EventBits_t events;
+
+    configASSERT(cfg_state.state != wmngr_state_deinit);
+    configASSERT(cfg_state.lock != NULL);
 
     result = ESP_OK;
+
+    /* Abort early if wifi manager has been stopped. */
+    events = xEventGroupGetBits(wifi_events);
+    if(events & BIT_STOPPED){
+        result = ESP_ERR_INVALID_STATE;
+        goto on_exit;
+    }
+
     xEventGroupSetBits(wifi_events, (BIT_SCAN_START | BIT_TRIGGER));
 
 #if !defined(CONFIG_WMNGR_TASK)
@@ -1511,6 +1715,7 @@ esp_err_t esp_wmngr_start_scan(void)
     }
 #endif
 
+on_exit:
     return result;
 }
 
@@ -1526,10 +1731,11 @@ struct scan_data *esp_wmngr_get_scan(void)
 {
     struct scan_data *data;
 
+    configASSERT(cfg_state.state != wmngr_state_deinit);
     configASSERT(cfg_state.lock != NULL);
 
     data = NULL;
-    if(cfg_state.lock == NULL || cfg_state.scan_ref == NULL){
+    if(cfg_state.scan_ref == NULL){
         goto on_exit;
     }
 
@@ -1600,4 +1806,46 @@ bool esp_wmngr_nvs_valid(void)
     result = get_saved_config(&cfg);
 
     return result == ESP_OK;
+}
+
+/** Reset the WiFi Manager configuration.
+ *
+ * Clear and reset the stored and loaded configuration to compile time
+ * defaults. WiFi Manager must be in state #wmngr_state_stopped.
+ * @return ESP_OK on success, ESP_ERR_* otherwise.
+ */
+esp_err_t esp_wmngr_reset_cfg(void)
+{
+    esp_err_t result;
+
+    configASSERT(cfg_state.state != wmngr_state_deinit);
+    configASSERT(cfg_state.lock != NULL);
+
+    if(xSemaphoreTake(cfg_state.lock, CFG_DELAY) != pdTRUE){
+        ESP_LOGE(TAG, "[%s] Error taking mutex.", __func__);
+        return ESP_ERR_TIMEOUT;
+    }
+
+    if(cfg_state.state != wmngr_state_stopped){
+        ESP_LOGW(TAG, "[%s] WiFi Manager not stopped.", __func__);
+        result = ESP_ERR_INVALID_STATE;
+        goto on_exit;
+    }
+
+    result = clear_config();
+    if(result != ESP_OK){
+        ESP_LOGE(TAG, "[%s] clear_config() failed\n", __func__);
+        goto on_exit;
+    }
+
+    result = load_config();
+    if(result != ESP_OK){
+        ESP_LOGE(TAG, "[%s] load_config() failed\n", __func__);
+        goto on_exit;
+    }
+
+on_exit:
+    xSemaphoreGive(cfg_state.lock);
+
+    return result;
 }

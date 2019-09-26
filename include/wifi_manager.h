@@ -38,6 +38,8 @@ struct scan_data {
 /** States used during WiFi (re)configuration. */
 enum wmngr_state {
     /* "stable" states */
+    wmngr_state_deinit = 0,     //!< Wifi manager not initialised yet
+    wmngr_state_stopped,        //!< Wifi manager is stopped
     wmngr_state_failed,         //!< Connection to AP failed
     wmngr_state_connected,      //!< Device is connected to AP
     wmngr_state_idle,           //!< Device is in AP mode, no STA config set
@@ -78,11 +80,14 @@ struct wifi_cfg {
 };
 
 esp_err_t esp_wmngr_init(void);
+esp_err_t esp_wmngr_start(void);
+esp_err_t esp_wmngr_stop(void);
 esp_err_t esp_wmngr_start_scan(void);
 struct scan_data *esp_wmngr_get_scan(void);
 void esp_wmngr_put_scan(struct scan_data *data);
 esp_err_t esp_wmngr_set_cfg(struct wifi_cfg *cfg);
 esp_err_t esp_wmngr_get_cfg(struct wifi_cfg *cfg);
+esp_err_t esp_wmngr_reset_cfg(void);
 esp_err_t esp_wmngr_start_wps(void);
 bool esp_wmngr_is_connected(void);
 esp_err_t esp_wmngr_connect(void);
