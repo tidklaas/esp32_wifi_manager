@@ -34,7 +34,7 @@
 #include "esp_wps.h"
 #include "esp_err.h"
 #include "nvs_flash.h"
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
+//#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
 #include "esp_log.h"
 
 #include "lwip/ip4.h"
@@ -1307,6 +1307,9 @@ void esp_wmngr_task(void *pvParameters)
  */
 esp_err_t esp_wmngr_init(void)
 {
+#if defined(CONFIG_WMNGR_TASK)
+    BaseType_t status;
+#endif
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_err_t result;
 
