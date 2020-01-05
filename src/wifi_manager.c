@@ -103,6 +103,9 @@ static struct wifi_cfg_state cfg_state = {.state = wmngr_state_deinit};
 #define BITS_WPS    (BIT_WPS_SUCCESS | BIT_WPS_FAILED)
 #define BIT_STOPPED             BIT10
 
+static esp_netif_t* sta_netif = NULL;
+static esp_netif_t* ap_netif = NULL;
+
 static EventGroupHandle_t wifi_events = NULL;
 
 static TimerHandle_t *config_timer = NULL;
@@ -116,6 +119,7 @@ static esp_err_t get_saved_config(struct wifi_cfg *cfg);
  */
 static void set_defaults(struct wifi_cfg *cfg)
 {
+    ip4_addr_t tmp;
     size_t len;
 
     memset(cfg, 0x0, sizeof(*cfg));
@@ -123,26 +127,29 @@ static void set_defaults(struct wifi_cfg *cfg)
     cfg->is_valid = true;
     cfg->mode = WIFI_MODE_APSTA;
 
-    if(!(ip4addr_aton(CONFIG_WMNGR_AP_IP, &(cfg->ap_ip_info.ip)))){
+    if(!(ip4addr_aton(CONFIG_WMNGR_AP_IP, &tmp))){
         ESP_LOGE(TAG, "[%s] Invalid default AP IP: %s. "
                       "Using 192.168.4.1 instead.",
                       __func__, CONFIG_WMNGR_AP_IP);
-        IP4_ADDR(&(cfg->ap_ip_info.ip), 192, 168, 4, 1);
+        IP4_ADDR(&tmp, 192, 168, 4, 1);
     }
+    cfg->ap_ip_info.ip.addr = tmp.addr;
 
-    if(!(ip4addr_aton(CONFIG_WMNGR_AP_MASK, &(cfg->ap_ip_info.netmask)))){
+    if(!(ip4addr_aton(CONFIG_WMNGR_AP_MASK, &tmp))){
         ESP_LOGE(TAG, "[%s] Invalid default AP netmask: %s. "
                       "Using 255.255.255.0 instead.",
                       __func__, CONFIG_WMNGR_AP_MASK);
-        IP4_ADDR(&(cfg->ap_ip_info.netmask), 255, 255, 255, 0);
+        IP4_ADDR(&tmp, 255, 255, 255, 0);
     }
+    cfg->ap_ip_info.netmask.addr = tmp.addr;
 
-    if(!(ip4addr_aton(CONFIG_WMNGR_AP_GW, &(cfg->ap_ip_info.gw)))){
+    if(!(ip4addr_aton(CONFIG_WMNGR_AP_GW, &tmp))){
         ESP_LOGE(TAG, "[%s] Invalid default AP GW: %s. "
                       "Using 192.168.4.1 instead.",
                       __func__, CONFIG_WMNGR_AP_GW);
-        IP4_ADDR(&(cfg->ap_ip_info.gw), 192, 168, 4, 1);
+        IP4_ADDR(&tmp, 192, 168, 4, 1);
     }
+    cfg->ap_ip_info.gw.addr = tmp.addr;
 
     len = strlen(CONFIG_WMNGR_AP_SSID);
     if(len > 0 && len <= sizeof(cfg->ap.ap.ssid)){
@@ -644,12 +651,11 @@ static esp_err_t set_wifi_cfg(struct wifi_cfg *cfg)
                      __func__, result, esp_err_to_name(result));
         }
         if(cfg->sta_static){
-            (void) tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
+            (void) esp_netif_dhcpc_stop(sta_netif);
 
-            result = tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA,
-                                                &cfg->sta_ip_info);
+            result = esp_netif_set_ip_info(sta_netif, &cfg->sta_ip_info);
             if(result != ESP_OK){
-                ESP_LOGE(TAG, "[%s] tcpip_adapter_set_ip_info() STA: %d %s",
+                ESP_LOGE(TAG, "[%s] esp_netif_set_ip_info() STA: %d %s",
                         __func__, result, esp_err_to_name(result));
             }
 
@@ -658,16 +664,16 @@ static esp_err_t set_wifi_cfg(struct wifi_cfg *cfg)
                     continue;
                 }
 
-                result = tcpip_adapter_set_dns_info(TCPIP_ADAPTER_IF_STA,
-                                                    idx,
-                                                    &(cfg->sta_dns_info[idx]));
+                result = esp_netif_set_dns_info(sta_netif,
+                                                idx,
+                                                &(cfg->sta_dns_info[idx]));
                 if(result != ESP_OK){
                     ESP_LOGE(TAG, "[%s] Setting DNS server IP failed.",
                             __func__);
                 }
             }
         } else {
-            (void) tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_STA);
+            (void) esp_netif_dhcpc_start(sta_netif);
         }
     }
 
@@ -764,7 +770,7 @@ on_exit:
  */
 static esp_err_t get_wifi_cfg(struct wifi_cfg *cfg)
 {
-    tcpip_adapter_dhcp_status_t dhcp_status;
+    esp_netif_dhcp_status_t dhcp_status;
     unsigned int idx;
     esp_err_t result;
 
@@ -792,27 +798,26 @@ static esp_err_t get_wifi_cfg(struct wifi_cfg *cfg)
         goto on_exit;
     }
 
-    result = tcpip_adapter_dhcpc_get_status(WIFI_IF_STA, &dhcp_status);
+    result = esp_netif_dhcpc_get_status(sta_netif, &dhcp_status);
     if(result != ESP_OK){
         ESP_LOGE(TAG, "[%s] Error fetching DHCP status.", __func__);
         goto on_exit;
     }
 
-    if(dhcp_status == TCPIP_ADAPTER_DHCP_STOPPED){
+    if(dhcp_status == ESP_NETIF_DHCP_STOPPED){
         cfg->sta_static = 1;
 
-        result = tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA,
-                                            &cfg->sta_ip_info);
+        result = esp_netif_get_ip_info(sta_netif, &cfg->sta_ip_info);
         if(result != ESP_OK){
-            ESP_LOGE(TAG, "[%s] tcpip_adapter_get_ip_info() STA: %d %s",
+            ESP_LOGE(TAG, "[%s] esp_netif_get_ip_info() STA: %d %s",
                     __func__, result, esp_err_to_name(result));
             goto on_exit;
         }
 
         for(idx = 0; idx < ARRAY_SIZE(cfg->sta_dns_info); ++idx){
-            result = tcpip_adapter_get_dns_info(TCPIP_ADAPTER_IF_STA,
-                                                idx,
-                                                &(cfg->sta_dns_info[idx]));
+            result = esp_netif_get_dns_info(sta_netif,
+                                            idx,
+                                            &(cfg->sta_dns_info[idx]));
             if(result != ESP_OK){
                 ESP_LOGE(TAG, "[%s] Getting DNS server IP failed.",
                          __func__);
@@ -828,10 +833,9 @@ static esp_err_t get_wifi_cfg(struct wifi_cfg *cfg)
         goto on_exit;
     }
 
-    result = tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP,
-                                        &cfg->ap_ip_info);
+    result = esp_netif_get_ip_info(ap_netif, &cfg->ap_ip_info);
     if(result != ESP_OK){
-        ESP_LOGE(TAG, "[%s] tcpip_adapter_get_ip_info() AP: %d %s",
+        ESP_LOGE(TAG, "[%s] esp_netif_get_ip_info() AP: %d %s",
                 __func__, result, esp_err_to_name(result));
         goto on_exit;
     }
@@ -1363,7 +1367,23 @@ esp_err_t esp_wmngr_init(void)
         goto on_exit;
     }
 
-    tcpip_adapter_init();
+    result = esp_netif_init();
+    if(result != ESP_OK){
+        ESP_LOGE(TAG, "[%s] esp_netif_init() failed", __func__);
+        goto on_exit;
+    }
+
+    sta_netif = esp_netif_create_default_wifi_sta();
+    if(sta_netif == NULL){
+        ESP_LOGE(TAG, "[%s] *_create_default_wifi_sta() failed", __func__);
+        goto on_exit;
+    }
+
+    ap_netif = esp_netif_create_default_wifi_ap();
+    if(ap_netif == NULL){
+        ESP_LOGE(TAG, "[%s] *_create_default_wifi_ap() failed", __func__);
+        goto on_exit;
+    }
 
     result = esp_wifi_init(&cfg);
     if(result != ESP_OK){

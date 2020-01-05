@@ -26,7 +26,7 @@
 #include <stdbool.h>
 #include "esp_err.h"
 #include "esp_wifi_types.h"
-#include "tcpip_adapter.h"
+#include "esp_netif.h"
 
 /** A set of AP scan data. */
 struct scan_data {
@@ -67,14 +67,14 @@ struct wifi_cfg {
                              before. */
     wifi_mode_t mode;   /*!< WiFi mode (AP, AP+STA, STA) */
     wifi_config_t ap;   /*!< Configuration of the AP component. */
-    tcpip_adapter_ip_info_t ap_ip_info;
+    esp_netif_ip_info_t ap_ip_info;
                         /*!< The IP address of the AP interface. */
     wifi_config_t sta;  /*!< Configuration of the STA component. */
     bool sta_static;    /*!< True if STA interface should use static IP and DNS 
                              configuration. When false, DHCP will be used. */
-    tcpip_adapter_ip_info_t sta_ip_info;
+    esp_netif_ip_info_t sta_ip_info;
                         /*!< The IP address of the STA interface in static mode.*/
-    tcpip_adapter_dns_info_t sta_dns_info[TCPIP_ADAPTER_DNS_MAX];
+    esp_netif_dns_info_t sta_dns_info[ESP_NETIF_DNS_MAX];
                         /*!< IP addresses of DNS servers to use in static IP mode. */
     bool sta_connect;   /*!< True if device should connect to AP in STA mode. */
 };
